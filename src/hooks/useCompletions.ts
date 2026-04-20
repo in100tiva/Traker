@@ -1,51 +1,136 @@
-import { useCallback, useEffect, useState } from "react";
-import type { DB } from "@/db/client";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+import type { DbBundle } from "@/db/client";
 import {
-  getCompletionsInRange,
-  getWeeklyCounts,
+  incrementCount,
   toggleCompletion,
+  type CompletionRecord,
   type WeeklyCount,
 } from "@/db/queries";
-import { lastNDays, toDateKey, type DateKey } from "@/lib/date";
+import { lastNDays, toDateKey } from "@/lib/date";
+
+interface CompletionRow {
+  date: string;
+  count: number;
+}
+interface WeekRow {
+  week_start: string;
+  count: string;
+}
 
 export function useCompletions(
-  db: DB | null,
+  bundle: DbBundle | null,
   habitId: string | null,
   windowDays = 371,
 ) {
-  const [completions, setCompletions] = useState<DateKey[]>([]);
+  const [completions, setCompletions] = useState<CompletionRecord[]>([]);
   const [weekly, setWeekly] = useState<WeeklyCount[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const refresh = useCallback(async () => {
-    if (!db || !habitId) {
+  const { from, to } = useMemo(() => {
+    const days = lastNDays(new Date(), windowDays);
+    return { from: days[0], to: days[days.length - 1] };
+  }, [windowDays]);
+
+  useEffect(() => {
+    if (!bundle || !habitId) {
       setCompletions([]);
       setWeekly([]);
       return;
     }
-    setLoading(true);
-    const days = lastNDays(new Date(), windowDays);
-    const [rows, weeks] = await Promise.all([
-      getCompletionsInRange(db, habitId, days[0], days[days.length - 1]),
-      getWeeklyCounts(db, habitId, 12),
-    ]);
-    setCompletions(rows);
-    setWeekly(weeks);
-    setLoading(false);
-  }, [db, habitId, windowDays]);
+    let cancelled = false;
+    let unsubCompletions: (() => void) | null = null;
+    let unsubWeekly: (() => void) | null = null;
 
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
+    setLoading(true);
+
+    bundle.pg.live
+      .query<CompletionRow>(
+        `SELECT date::text AS date, count FROM completions
+         WHERE habit_id = $1 AND date BETWEEN $2 AND $3
+         ORDER BY date ASC`,
+        [habitId, from, to],
+        (res) => {
+          if (cancelled) return;
+          setCompletions(res.rows.map((r) => ({ date: r.date, count: r.count })));
+          setLoading(false);
+        },
+      )
+      .then((sub) => {
+        if (cancelled) {
+          sub.unsubscribe();
+          return;
+        }
+        unsubCompletions = sub.unsubscribe;
+      })
+      .catch((err) => {
+        console.error("[completions] live query failed", err);
+        toast.error("Falha ao carregar marcações");
+      });
+
+    bundle.pg.live
+      .query<WeekRow>(
+        `SELECT to_char(date_trunc('week', date)::date, 'YYYY-MM-DD') AS week_start,
+                count(*)::text AS count
+         FROM completions
+         WHERE habit_id = $1
+         GROUP BY 1
+         ORDER BY 1 DESC
+         LIMIT 12`,
+        [habitId],
+        (res) => {
+          if (cancelled) return;
+          const mapped = res.rows
+            .map((r) => ({ weekStart: r.week_start, count: Number(r.count) }))
+            .reverse();
+          setWeekly(mapped);
+        },
+      )
+      .then((sub) => {
+        if (cancelled) {
+          sub.unsubscribe();
+          return;
+        }
+        unsubWeekly = sub.unsubscribe;
+      })
+      .catch((err) => {
+        console.error("[weekly] live query failed", err);
+      });
+
+    return () => {
+      cancelled = true;
+      unsubCompletions?.();
+      unsubWeekly?.();
+    };
+  }, [bundle, habitId, from, to]);
 
   const toggle = useCallback(
     async (date: Date) => {
-      if (!db || !habitId) return;
-      await toggleCompletion(db, habitId, toDateKey(date));
-      await refresh();
+      if (!bundle || !habitId) return;
+      try {
+        await toggleCompletion(bundle.db, habitId, toDateKey(date));
+      } catch (err) {
+        toast.error("Falha ao atualizar marcação", {
+          description: (err as Error).message,
+        });
+      }
     },
-    [db, habitId, refresh],
+    [bundle, habitId],
   );
 
-  return { completions, weekly, loading, toggle, refresh };
+  const increment = useCallback(
+    async (date: Date, delta: number) => {
+      if (!bundle || !habitId) return;
+      try {
+        await incrementCount(bundle.db, habitId, toDateKey(date), delta);
+      } catch (err) {
+        toast.error("Falha ao atualizar contador", {
+          description: (err as Error).message,
+        });
+      }
+    },
+    [bundle, habitId],
+  );
+
+  return { completions, weekly, loading, toggle, increment };
 }

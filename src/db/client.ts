@@ -1,43 +1,47 @@
-import { PGlite } from "@electric-sql/pglite";
-import { drizzle } from "drizzle-orm/pglite";
+import type { PGlite } from "@electric-sql/pglite";
+import type { LiveNamespace } from "@electric-sql/pglite/live";
+import type { PgliteDatabase } from "drizzle-orm/pglite";
+import { applyMigrations } from "./migrator";
 
-const DDL = `
-  CREATE TABLE IF NOT EXISTS habits (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    name text NOT NULL,
-    description text,
-    color text NOT NULL DEFAULT '#22c55e',
-    created_at timestamptz NOT NULL DEFAULT now()
-  );
+export type PGliteWithLive = PGlite & { live: LiveNamespace };
+export type DB = PgliteDatabase;
 
-  CREATE TABLE IF NOT EXISTS completions (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    habit_id uuid NOT NULL REFERENCES habits(id) ON DELETE CASCADE,
-    date date NOT NULL,
-    created_at timestamptz NOT NULL DEFAULT now()
-  );
-
-  CREATE UNIQUE INDEX IF NOT EXISTS uniq_habit_date
-    ON completions (habit_id, date);
-`;
-
-export type DB = ReturnType<typeof drizzle>;
-
-export async function createDb(dataDir?: string): Promise<DB> {
-  const pg = new PGlite(dataDir);
-  await pg.exec(DDL);
-  return drizzle(pg);
+export interface DbBundle {
+  db: DB;
+  pg: PGliteWithLive;
 }
 
-let dbInstance: Promise<DB> | null = null;
-
 /**
- * Browser singleton backed by IndexedDB. Tests should call createDb() directly
- * (no arg = in-memory) instead of getDb().
+ * Dynamically imports PGlite + drizzle so the ~13MB WASM bundle is deferred
+ * until the DB is actually needed, keeping the initial paint fast.
  */
-export function getDb(): Promise<DB> {
-  if (!dbInstance) {
-    dbInstance = createDb("idb://traker-db");
+export async function createDb(dataDir?: string): Promise<DbBundle> {
+  const [{ PGlite }, { live }, { drizzle }] = await Promise.all([
+    import("@electric-sql/pglite"),
+    import("@electric-sql/pglite/live"),
+    import("drizzle-orm/pglite"),
+  ]);
+
+  const pg = (await PGlite.create(dataDir, {
+    extensions: { live },
+  })) as PGliteWithLive;
+
+  await applyMigrations(pg);
+  const db = drizzle(pg);
+  return { db, pg };
+}
+
+let dbPromise: Promise<DbBundle> | null = null;
+
+/** Browser singleton backed by IndexedDB. */
+export function getDb(): Promise<DbBundle> {
+  if (!dbPromise) {
+    dbPromise = createDb("idb://traker-db");
   }
-  return dbInstance;
+  return dbPromise;
+}
+
+/** Resets the singleton. Used after import/restore so the UI picks up new data. */
+export function resetDbSingleton(): void {
+  dbPromise = null;
 }

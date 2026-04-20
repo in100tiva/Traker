@@ -27,6 +27,7 @@ interface Props {
     name: string;
     description?: string | null;
     color?: string;
+    targetPerWeek?: number;
   }) => Promise<{ id: string } | null>;
   onCreated?: (id: string) => void;
 }
@@ -36,6 +37,7 @@ export function HabitForm({ onCreate, onCreated }: Props) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [color, setColor] = useState(COLORS[0]);
+  const [targetPerWeek, setTargetPerWeek] = useState(7);
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -46,11 +48,13 @@ export function HabitForm({ onCreate, onCreated }: Props) {
       name: name.trim(),
       description: description.trim() || null,
       color,
+      targetPerWeek,
     });
     setSubmitting(false);
     setName("");
     setDescription("");
     setColor(COLORS[0]);
+    setTargetPerWeek(7);
     closeCreate();
     if (row) onCreated?.(row.id);
   }
@@ -61,7 +65,7 @@ export function HabitForm({ onCreate, onCreated }: Props) {
         <DialogHeader>
           <DialogTitle>Novo hábito</DialogTitle>
           <DialogDescription>
-            Defina um hábito para acompanhar diariamente.
+            Defina um hábito para acompanhar regularmente.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -84,6 +88,26 @@ export function HabitForm({ onCreate, onCreated }: Props) {
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Antes de dormir"
             />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="target">Meta semanal</Label>
+            <div className="flex items-center gap-3">
+              <Input
+                id="target"
+                type="number"
+                min={1}
+                max={7}
+                value={targetPerWeek}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  if (Number.isFinite(v)) setTargetPerWeek(Math.max(1, Math.min(7, v)));
+                }}
+                className="w-20"
+              />
+              <span className="text-sm text-muted-foreground">
+                {targetPerWeek === 7 ? "dias por semana (diário)" : "dias por semana"}
+              </span>
+            </div>
           </div>
           <div className="space-y-2">
             <Label>Cor</Label>

@@ -5,6 +5,7 @@ import {
   text,
   timestamp,
   date,
+  smallint,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
@@ -15,6 +16,8 @@ export const habits = pgTable("habits", {
   name: text("name").notNull(),
   description: text("description"),
   color: text("color").notNull().default("#22c55e"),
+  targetPerWeek: smallint("target_per_week").notNull().default(7),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .default(sql`now()`),
@@ -30,6 +33,7 @@ export const completions = pgTable(
       .notNull()
       .references(() => habits.id, { onDelete: "cascade" }),
     date: date("date").notNull(),
+    count: smallint("count").notNull().default(1),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .default(sql`now()`),
