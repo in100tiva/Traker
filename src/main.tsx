@@ -5,12 +5,22 @@ import App from "./App";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import "./index.css";
 
-if ("serviceWorker" in navigator && import.meta.env.PROD) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").catch((err) => {
-      console.warn("[sw] registration failed", err);
-    });
+// Desregistra qualquer Service Worker antigo e limpa todos os caches.
+// Um SW anterior fazia cache-first do /index.html, o que prendia usuários
+// em builds antigos após deploy. Aqui garantimos que ninguém fica travado.
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.getRegistrations().then((regs) => {
+    for (const reg of regs) {
+      reg.unregister().catch(() => {});
+    }
   });
+  if ("caches" in window) {
+    caches.keys().then((keys) => {
+      for (const k of keys) {
+        caches.delete(k).catch(() => {});
+      }
+    });
+  }
 }
 
 function ThemedToaster() {
