@@ -28,9 +28,12 @@ import { StreakBadge } from "./StreakBadge";
 import { MilestoneChips } from "./MilestoneChips";
 import { WeeklyProgressDots } from "./WeeklyProgressDots";
 import { Heatmap } from "./Heatmap";
+import { MonthlyHeatmap } from "./MonthlyHeatmap";
+import { HabitInsights } from "./HabitInsights";
 import { WeeklyChart } from "./WeeklyChart";
 import { WeekdayHistogram } from "./WeekdayHistogram";
 import { StreakTrendChart } from "./StreakTrendChart";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import {
   calculateCurrentStreak,
   calculateLongestStreak,
@@ -111,6 +114,7 @@ export function HabitCard({
 
   const isArchived = Boolean(habit.archivedAt);
   const isPaused = Boolean(habit.pausedAt);
+  const isMobile = useMediaQuery("(max-width: 767px)");
 
   return (
     <div className="space-y-6">
@@ -340,21 +344,38 @@ export function HabitCard({
         </CardContent>
       </Card>
 
+      <HabitInsights
+        completions={completions}
+        weekly={weekly}
+        targetPerWeek={habit.targetPerWeek}
+        color={habit.color}
+      />
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Atividade</CardTitle>
           <CardDescription>
-            Clique em um dia para marcar ou adicionar uma nota. O ponto branco
-            indica dias com nota.
+            {isMobile
+              ? "Toque em um dia para marcar ou adicionar nota."
+              : "Clique em um dia para marcar ou adicionar uma nota. O ponto branco indica dias com nota."}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Heatmap
-            entries={completions}
-            color={habit.color}
-            onCellClick={onCellClick}
-            retroactiveLimitDays={retroactiveLimitDays}
-          />
+          {isMobile ? (
+            <MonthlyHeatmap
+              entries={completions}
+              color={habit.color}
+              onCellClick={onCellClick}
+              retroactiveLimitDays={retroactiveLimitDays}
+            />
+          ) : (
+            <Heatmap
+              entries={completions}
+              color={habit.color}
+              onCellClick={onCellClick}
+              retroactiveLimitDays={retroactiveLimitDays}
+            />
+          )}
         </CardContent>
       </Card>
 

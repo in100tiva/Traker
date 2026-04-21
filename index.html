@@ -13,9 +13,237 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Traker — Hábitos</title>
+    <style>
+      /* Shell pintado antes do JS. Mesmas variáveis de tema do app. */
+      :root {
+        --bg: hsl(0 0% 100%);
+        --fg: hsl(240 10% 4%);
+        --surface: hsl(0 0% 99%);
+        --border: hsl(240 6% 90%);
+        --muted: hsl(240 5% 96%);
+        --primary: hsl(142 72% 45%);
+      }
+      html.dark {
+        --bg: hsl(240 10% 3.5%);
+        --fg: hsl(0 0% 98%);
+        --surface: hsl(240 9% 6%);
+        --border: hsl(240 7% 15%);
+        --muted: hsl(240 7% 13%);
+        --primary: hsl(142 70% 50%);
+      }
+      html,
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
+      }
+      #root:empty::before {
+        content: "";
+        display: block;
+        height: 100vh;
+        background: var(--bg);
+      }
+      .app-shell {
+        display: flex;
+        height: 100vh;
+        width: 100%;
+        overflow: hidden;
+      }
+      .app-shell__sidebar {
+        width: 256px;
+        border-right: 1px solid var(--border);
+        background: var(--surface);
+        display: none;
+      }
+      @media (min-width: 768px) {
+        .app-shell__sidebar {
+          display: flex;
+          flex-direction: column;
+        }
+      }
+      .app-shell__sidebar-header {
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .app-shell__logo {
+        width: 24px;
+        height: 24px;
+        border-radius: 8px;
+        background: color-mix(in srgb, var(--primary) 15%, transparent);
+        border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
+      }
+      .app-shell__logo::after {
+        content: "";
+        display: block;
+        margin: 5px 4px;
+        width: 14px;
+        height: 14px;
+        background-image: linear-gradient(
+          135deg,
+          transparent 0 40%,
+          var(--primary) 40% 50%,
+          transparent 50%
+        );
+      }
+      .app-shell__brand {
+        font-weight: 700;
+        font-size: 18px;
+        letter-spacing: -0.02em;
+      }
+      .app-shell__sidebar-rows {
+        padding: 12px 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        flex: 1;
+      }
+      .app-shell__row {
+        height: 40px;
+        border-radius: 6px;
+        background: var(--muted);
+        opacity: 0.6;
+        animation: pulse 1.6s ease-in-out infinite;
+      }
+      .app-shell__row:nth-child(2) {
+        animation-delay: 0.15s;
+      }
+      .app-shell__row:nth-child(3) {
+        animation-delay: 0.3s;
+      }
+      .app-shell__row:nth-child(4) {
+        animation-delay: 0.45s;
+      }
+      .app-shell__main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+      }
+      .app-shell__header {
+        border-bottom: 1px solid var(--border);
+        background: var(--surface);
+        padding: 12px 16px;
+        height: 56px;
+      }
+      @media (min-width: 768px) {
+        .app-shell__header {
+          padding: 12px 32px;
+        }
+      }
+      .app-shell__content {
+        padding: 16px;
+        max-width: 1024px;
+        margin: 0 auto;
+        width: 100%;
+        box-sizing: border-box;
+      }
+      @media (min-width: 768px) {
+        .app-shell__content {
+          padding: 32px;
+        }
+      }
+      .app-shell__hero {
+        height: 180px;
+        border-radius: 14px;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        margin-bottom: 24px;
+        position: relative;
+        overflow: hidden;
+      }
+      .app-shell__hero::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(
+          90deg,
+          transparent 0%,
+          color-mix(in srgb, var(--muted) 60%, transparent) 50%,
+          transparent 100%
+        );
+        animation: shimmer 1.8s linear infinite;
+      }
+      .app-shell__list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .app-shell__item {
+        height: 64px;
+        border-radius: 12px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        opacity: 0.85;
+        position: relative;
+        overflow: hidden;
+      }
+      .app-shell__item::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          color-mix(in srgb, var(--muted) 55%, transparent),
+          transparent
+        );
+        animation: shimmer 1.8s linear infinite;
+      }
+      .app-shell__item:nth-child(2)::after {
+        animation-delay: 0.2s;
+      }
+      .app-shell__item:nth-child(3)::after {
+        animation-delay: 0.4s;
+      }
+      @keyframes pulse {
+        0%, 100% { opacity: 0.4; }
+        50%      { opacity: 0.8; }
+      }
+      @keyframes shimmer {
+        0%   { transform: translateX(-100%); }
+        100% { transform: translateX(100%); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .app-shell__row,
+        .app-shell__hero::after,
+        .app-shell__item::after {
+          animation: none;
+        }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="app-shell" aria-hidden="true">
+        <aside class="app-shell__sidebar">
+          <div class="app-shell__sidebar-header">
+            <div class="app-shell__logo"></div>
+            <div class="app-shell__brand">Traker</div>
+          </div>
+          <div class="app-shell__sidebar-rows">
+            <div class="app-shell__row"></div>
+            <div class="app-shell__row"></div>
+            <div class="app-shell__row"></div>
+            <div class="app-shell__row"></div>
+          </div>
+        </aside>
+        <main class="app-shell__main">
+          <header class="app-shell__header"></header>
+          <div class="app-shell__content">
+            <div class="app-shell__hero"></div>
+            <div class="app-shell__list">
+              <div class="app-shell__item"></div>
+              <div class="app-shell__item"></div>
+              <div class="app-shell__item"></div>
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
