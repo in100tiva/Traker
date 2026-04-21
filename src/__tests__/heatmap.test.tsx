@@ -12,55 +12,77 @@ describe("Heatmap", () => {
     expect(grid.children.length).toBe(53 * 7);
   });
 
-  it("marks today cell with the 'feito' label when count > 0", () => {
+  it("today cell exposes aria-label with count", () => {
     const today = todayKey();
-    render(
-      <Heatmap
-        entries={[{ date: today, count: 1 }]}
-        color="#22c55e"
-      />,
-    );
-    const btn = screen.getByLabelText(new RegExp(`^${today} contagem 1`));
-    expect(btn).toBeInTheDocument();
+    render(<Heatmap entries={[{ date: today, count: 3 }]} color="#22c55e" />);
+    expect(
+      screen.getByLabelText(new RegExp(`^${today} contagem 3`)),
+    ).toBeInTheDocument();
   });
 
-  it("shows count in aria-label for quantitative days", () => {
+  it("note indicator adds '(com nota)' to the label", () => {
     const today = todayKey();
     render(
       <Heatmap
-        entries={[{ date: today, count: 5 }]}
+        entries={[{ date: today, count: 1, note: "algo" }]}
         color="#22c55e"
       />,
     );
     expect(
-      screen.getByLabelText(new RegExp(`^${today} contagem 5`)),
+      screen.getByLabelText(new RegExp(`${today}.*com nota`)),
     ).toBeInTheDocument();
   });
 
-  it("disables future cells (no click fires)", () => {
+  it("calls onCellClick when provided (takes priority over onToggle)", () => {
     const onToggle = vi.fn();
-    const tomorrow = toDateKey(addDays(new Date(), 1));
-    render(<Heatmap entries={[]} color="#22c55e" onToggle={onToggle} />);
-    const futureBtn = screen.queryByLabelText(
-      new RegExp(`^${tomorrow} não feito`),
-    );
-    // Future cells still exist in the grid but are disabled
-    if (futureBtn) {
-      fireEvent.click(futureBtn);
-      expect(onToggle).not.toHaveBeenCalled();
-    }
-  });
-
-  it("calls onToggle with the clicked date", () => {
-    const onToggle = vi.fn();
+    const onCellClick = vi.fn();
     const today = todayKey();
     render(
-      <Heatmap entries={[]} color="#22c55e" onToggle={onToggle} />,
+      <Heatmap
+        entries={[]}
+        color="#22c55e"
+        onToggle={onToggle}
+        onCellClick={onCellClick}
+      />,
     );
     const btn = screen.getByLabelText(new RegExp(`^${today} não feito`));
     fireEvent.click(btn);
-    expect(onToggle).toHaveBeenCalledTimes(1);
-    const arg = onToggle.mock.calls[0][0] as Date;
-    expect(toDateKey(arg)).toBe(today);
+    expect(onCellClick).toHaveBeenCalledTimes(1);
+    expect(onToggle).not.toHaveBeenCalled();
+  });
+
+  it("retroactive limit disables cells older than the threshold", () => {
+    const onCellClick = vi.fn();
+    render(
+      <Heatmap
+        entries={[]}
+        color="#22c55e"
+        retroactiveLimitDays={7}
+        onCellClick={onCellClick}
+      />,
+    );
+    // 30 days ago is older than the 7-day threshold → disabled (cannot click)
+    const tooOld = toDateKey(addDays(new Date(), -30));
+    const btn = screen.queryByLabelText(new RegExp(`^${tooOld} não feito`));
+    if (btn) {
+      fireEvent.click(btn);
+      expect(onCellClick).not.toHaveBeenCalled();
+    }
+    // Yesterday is within the window → clickable
+    const yesterday = toDateKey(addDays(new Date(), -1));
+    const okBtn = screen.getByLabelText(new RegExp(`^${yesterday} não feito`));
+    fireEvent.click(okBtn);
+    expect(onCellClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("month nav buttons are present and clickable", () => {
+    render(<Heatmap entries={[]} color="#22c55e" />);
+    const prev = screen.getByTestId("heatmap-prev-month");
+    const next = screen.getByTestId("heatmap-next-month");
+    fireEvent.click(prev);
+    fireEvent.click(next);
+    // Smoke test — no errors
+    expect(prev).toBeInTheDocument();
+    expect(next).toBeInTheDocument();
   });
 });

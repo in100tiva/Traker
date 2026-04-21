@@ -1,12 +1,24 @@
-import { useMemo } from "react";
-import { format, parseISO, endOfWeek, addDays } from "date-fns";
+import { useMemo, useState, useEffect } from "react";
+import {
+  format,
+  parseISO,
+  endOfWeek,
+  addDays,
+  startOfMonth,
+  endOfMonth,
+  addMonths,
+  subMonths,
+  isWithinInterval,
+} from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Button } from "@/components/ui/button";
 import { lastNDays, toDateKey, type DateKey } from "@/lib/date";
 import { cn } from "@/lib/utils";
 
@@ -16,12 +28,15 @@ const TOTAL_DAYS = WEEKS * 7;
 export interface HeatmapEntry {
   date: DateKey;
   count: number;
+  note?: string | null;
 }
 
 interface Props {
   entries: HeatmapEntry[];
   color: string;
   onToggle?: (date: Date) => void;
+  onCellClick?: (date: Date) => void;
+  retroactiveLimitDays?: number; // 0 = unlimited
 }
 
 function hexToRgb(hex: string): [number, number, number] {
@@ -30,7 +45,6 @@ function hexToRgb(hex: string): [number, number, number] {
   return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
 }
 
-/** Map a count to an opacity bucket (0.25 / 0.5 / 0.75 / 1). */
 function intensity(count: number, max: number): number {
   if (count <= 0) return 0.08;
   if (max <= 1) return 1;
@@ -41,10 +55,16 @@ function intensity(count: number, max: number): number {
   return 1;
 }
 
-export function Heatmap({ entries, color, onToggle }: Props) {
+export function Heatmap({
+  entries,
+  color,
+  onToggle,
+  onCellClick,
+  retroactiveLimitDays = 0,
+}: Props) {
   const byDate = useMemo(() => {
-    const map = new Map<DateKey, number>();
-    for (const e of entries) map.set(e.date, e.count);
+    const map = new Map<DateKey, { count: number; note?: string | null }>();
+    for (const e of entries) map.set(e.date, { count: e.count, note: e.note });
     return map;
   }, [entries]);
 
@@ -53,10 +73,16 @@ export function Heatmap({ entries, color, onToggle }: Props) {
     [entries],
   );
 
+  // Month navigation — highlights the selected month within the yearly grid.
+  const [viewMonth, setViewMonth] = useState<Date>(() => new Date());
+
+  useEffect(() => {
+    // Reset to current month whenever entries change drastically (new habit)
+    setViewMonth(new Date());
+  }, [entries.length === 0]);
+
   const cells = useMemo(() => {
     const today = new Date();
-    // Anchor grid to end of current week (Saturday, Sun-based) so today is
-    // always inside the grid; then back-fill TOTAL_DAYS cells.
     const gridEnd = endOfWeek(today, { weekStartsOn: 0 });
     const gridStart = addDays(gridEnd, -(TOTAL_DAYS - 1));
     const days: Date[] = [];
@@ -68,23 +94,79 @@ export function Heatmap({ entries, color, onToggle }: Props) {
 
   const [r, g, b] = hexToRgb(color);
   const today = toDateKey(new Date());
-  const validRange = new Set(lastNDays(new Date(), TOTAL_DAYS));
+  const validRange = useMemo(
+    () => new Set(lastNDays(new Date(), TOTAL_DAYS)),
+    [],
+  );
+  const monthStart = startOfMonth(viewMonth);
+  const monthEnd = endOfMonth(viewMonth);
+
+  const retroLimitKey = useMemo(() => {
+    if (!retroactiveLimitDays || retroactiveLimitDays <= 0) return null;
+    return toDateKey(addDays(new Date(), -retroactiveLimitDays));
+  }, [retroactiveLimitDays]);
 
   return (
     <TooltipProvider delayDuration={100}>
       <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <div className="text-sm font-medium">
+            {format(viewMonth, "MMMM 'de' yyyy", { locale: ptBR })}
+          </div>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setViewMonth((m) => subMonths(m, 1))}
+              aria-label="Mês anterior"
+              data-testid="heatmap-prev-month"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setViewMonth(new Date())}
+            >
+              Hoje
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setViewMonth((m) => addMonths(m, 1))}
+              aria-label="Próximo mês"
+              data-testid="heatmap-next-month"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
         <div
-          className="grid grid-flow-col grid-rows-7 gap-[3px]"
+          className="grid grid-flow-col grid-rows-7 gap-[3px] overflow-x-auto"
           style={{ gridAutoColumns: "min-content" }}
           data-testid="heatmap-grid"
+          role="grid"
+          aria-label="Heatmap de completude diária"
         >
-          {cells.map((d) => {
+          {cells.map((d, i) => {
             const key = toDateKey(d);
             const inRange = validRange.has(key);
-            const count = byDate.get(key) ?? 0;
+            const entry = byDate.get(key);
+            const count = entry?.count ?? 0;
+            const hasNote = Boolean(entry?.note);
             const isDone = count > 0;
             const isFuture = key > today;
-            const alpha = isDone ? intensity(count, maxCount) : inRange ? 0.08 : 0;
+            const isTooOld = retroLimitKey ? key < retroLimitKey : false;
+            const inViewMonth = isWithinInterval(d, {
+              start: monthStart,
+              end: monthEnd,
+            });
+            const disabled = isFuture || isTooOld;
+            const alpha = isDone
+              ? intensity(count, maxCount)
+              : inRange
+                ? 0.08
+                : 0;
             const bg =
               alpha > 0 ? `rgba(${r}, ${g}, ${b}, ${alpha})` : "transparent";
             return (
@@ -92,16 +174,28 @@ export function Heatmap({ entries, color, onToggle }: Props) {
                 <TooltipTrigger asChild>
                   <button
                     type="button"
-                    disabled={isFuture}
-                    onClick={() => !isFuture && onToggle?.(d)}
+                    disabled={disabled}
+                    onClick={() => {
+                      if (disabled) return;
+                      if (onCellClick) onCellClick(d);
+                      else onToggle?.(d);
+                    }}
                     className={cn(
-                      "h-[11px] w-[11px] rounded-[2px] border border-transparent transition-colors",
-                      !isFuture && "hover:ring-1 hover:ring-ring/50",
-                      key === today && "ring-1 ring-foreground/40",
+                      "relative h-[11px] w-[11px] rounded-[2px] border border-transparent transition-colors",
+                      !disabled && "hover:ring-1 hover:ring-ring/50",
+                      key === today && "ring-1 ring-foreground/60",
+                      inViewMonth && "ring-1 ring-foreground/20",
                     )}
                     style={{ backgroundColor: bg }}
-                    aria-label={`${key} ${isDone ? `contagem ${count}` : "não feito"}`}
-                  />
+                    aria-label={`${key} ${isDone ? `contagem ${count}` : "não feito"}${hasNote ? " (com nota)" : ""}`}
+                    role="gridcell"
+                    aria-rowindex={(i % 7) + 1}
+                    aria-colindex={Math.floor(i / 7) + 1}
+                  >
+                    {hasNote && (
+                      <span className="pointer-events-none absolute -right-0.5 -top-0.5 h-[4px] w-[4px] rounded-full bg-foreground/80" />
+                    )}
+                  </button>
                 </TooltipTrigger>
                 <TooltipContent>
                   <div className="text-xs">
@@ -110,12 +204,19 @@ export function Heatmap({ entries, color, onToggle }: Props) {
                   <div className="text-xs text-muted-foreground">
                     {isFuture
                       ? "—"
-                      : isDone
-                        ? count === 1
-                          ? "Feito ✓"
-                          : `Feito (${count}x)`
-                        : "Não feito"}
+                      : isTooOld
+                        ? "Retroativo bloqueado"
+                        : isDone
+                          ? count === 1
+                            ? "Feito ✓"
+                            : `Feito (${count}x)`
+                          : "Não feito"}
                   </div>
+                  {entry?.note && (
+                    <div className="mt-1 max-w-[200px] border-t pt-1 text-xs italic">
+                      “{entry.note}”
+                    </div>
+                  )}
                 </TooltipContent>
               </Tooltip>
             );

@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import type { DbBundle } from "@/db/client";
 import {
   incrementCount,
+  setNote,
   toggleCompletion,
   type CompletionRecord,
   type WeeklyCount,
@@ -12,6 +13,7 @@ import { lastNDays, toDateKey } from "@/lib/date";
 interface CompletionRow {
   date: string;
   count: number;
+  note: string | null;
 }
 interface WeekRow {
   week_start: string;
@@ -46,13 +48,19 @@ export function useCompletions(
 
     bundle.pg.live
       .query<CompletionRow>(
-        `SELECT date::text AS date, count FROM completions
+        `SELECT date::text AS date, count, note FROM completions
          WHERE habit_id = $1 AND date BETWEEN $2 AND $3
          ORDER BY date ASC`,
         [habitId, from, to],
         (res) => {
           if (cancelled) return;
-          setCompletions(res.rows.map((r) => ({ date: r.date, count: r.count })));
+          setCompletions(
+            res.rows.map((r) => ({
+              date: r.date,
+              count: r.count,
+              note: r.note,
+            })),
+          );
           setLoading(false);
         },
       )
@@ -132,5 +140,19 @@ export function useCompletions(
     [bundle, habitId],
   );
 
-  return { completions, weekly, loading, toggle, increment };
+  const updateNote = useCallback(
+    async (date: Date, note: string | null) => {
+      if (!bundle || !habitId) return;
+      try {
+        await setNote(bundle.db, habitId, toDateKey(date), note);
+      } catch (err) {
+        toast.error("Falha ao salvar nota", {
+          description: (err as Error).message,
+        });
+      }
+    },
+    [bundle, habitId],
+  );
+
+  return { completions, weekly, loading, toggle, increment, updateNote };
 }

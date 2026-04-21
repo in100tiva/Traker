@@ -1,14 +1,42 @@
-import { and, asc, desc, eq, gte, isNotNull, isNull, lte, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  isNotNull,
+  isNull,
+  lte,
+  sql,
+} from "drizzle-orm";
 import type { DB } from "./client";
-import { completions, habits, type Habit } from "./schema";
+import {
+  completions,
+  habits,
+  settings,
+  type Habit,
+} from "./schema";
 import type { DateKey } from "@/lib/date";
 
-export async function listHabits(db: DB, includeArchived = false): Promise<Habit[]> {
+// -------------------------- habits CRUD --------------------------
+
+export async function listHabits(
+  db: DB,
+  opts: { includeArchived?: boolean; includePaused?: boolean } = {},
+): Promise<Habit[]> {
+  const conditions = [] as ReturnType<typeof eq>[];
+  if (!opts.includeArchived) conditions.push(isNull(habits.archivedAt) as never);
+  if (!opts.includePaused) conditions.push(isNull(habits.pausedAt) as never);
+  const where =
+    conditions.length === 0
+      ? undefined
+      : conditions.length === 1
+        ? conditions[0]
+        : and(...conditions);
   const query = db.select().from(habits);
-  const rows = includeArchived
-    ? await query.orderBy(asc(habits.createdAt))
-    : await query.where(isNull(habits.archivedAt)).orderBy(asc(habits.createdAt));
-  return rows;
+  return where
+    ? query.where(where).orderBy(asc(habits.sortOrder), asc(habits.createdAt))
+    : query.orderBy(asc(habits.sortOrder), asc(habits.createdAt));
 }
 
 export async function listArchivedHabits(db: DB): Promise<Habit[]> {
@@ -26,8 +54,15 @@ export async function createHabit(
     description?: string | null;
     color?: string;
     targetPerWeek?: number;
+    targetPerDay?: number | null;
+    unit?: string | null;
+    isNegative?: boolean;
+    tag?: string | null;
   },
 ): Promise<Habit> {
+  const [{ maxOrder }] = await db
+    .select({ maxOrder: sql<number>`coalesce(max(sort_order), 0)::int` })
+    .from(habits);
   const [row] = await db
     .insert(habits)
     .values({
@@ -35,9 +70,31 @@ export async function createHabit(
       description: input.description ?? null,
       color: input.color ?? "#22c55e",
       targetPerWeek: input.targetPerWeek ?? 7,
+      targetPerDay: input.targetPerDay ?? null,
+      unit: input.unit ?? null,
+      isNegative: input.isNegative ?? false,
+      tag: input.tag ?? null,
+      sortOrder: Number(maxOrder) + 1,
     })
     .returning();
   return row;
+}
+
+export async function updateHabit(
+  db: DB,
+  habitId: string,
+  patch: Partial<{
+    name: string;
+    description: string | null;
+    color: string;
+    targetPerWeek: number;
+    targetPerDay: number | null;
+    unit: string | null;
+    isNegative: boolean;
+    tag: string | null;
+  }>,
+): Promise<void> {
+  await db.update(habits).set(patch).where(eq(habits.id, habitId));
 }
 
 export async function archiveHabit(db: DB, habitId: string): Promise<void> {
@@ -54,13 +111,42 @@ export async function unarchiveHabit(db: DB, habitId: string): Promise<void> {
     .where(eq(habits.id, habitId));
 }
 
+export async function pauseHabit(db: DB, habitId: string): Promise<void> {
+  await db
+    .update(habits)
+    .set({ pausedAt: new Date() })
+    .where(eq(habits.id, habitId));
+}
+
+export async function resumeHabit(db: DB, habitId: string): Promise<void> {
+  await db
+    .update(habits)
+    .set({ pausedAt: null })
+    .where(eq(habits.id, habitId));
+}
+
 export async function deleteHabit(db: DB, habitId: string): Promise<void> {
   await db.delete(habits).where(eq(habits.id, habitId));
 }
 
+export async function reorderHabits(
+  db: DB,
+  orderedIds: string[],
+): Promise<void> {
+  for (let i = 0; i < orderedIds.length; i++) {
+    await db
+      .update(habits)
+      .set({ sortOrder: i + 1 })
+      .where(eq(habits.id, orderedIds[i]));
+  }
+}
+
+// ----------------------- completions --------------------------
+
 export interface CompletionRecord {
   date: DateKey;
   count: number;
+  note: string | null;
 }
 
 export async function getCompletionsInRange(
@@ -70,7 +156,11 @@ export async function getCompletionsInRange(
   to: DateKey,
 ): Promise<CompletionRecord[]> {
   const rows = await db
-    .select({ date: completions.date, count: completions.count })
+    .select({
+      date: completions.date,
+      count: completions.count,
+      note: completions.note,
+    })
     .from(completions)
     .where(
       and(
@@ -80,13 +170,9 @@ export async function getCompletionsInRange(
       ),
     )
     .orderBy(asc(completions.date));
-  return rows.map((r) => ({ date: r.date, count: r.count }));
+  return rows.map((r) => ({ date: r.date, count: r.count, note: r.note }));
 }
 
-/**
- * Toggles the completion for a given date. If absent, inserts with count=1.
- * If present, deletes (regardless of count). Use incrementCount for quantitative.
- */
 export async function toggleCompletion(
   db: DB,
   habitId: string,
@@ -106,7 +192,6 @@ export async function toggleCompletion(
   return "created";
 }
 
-/** Increments the count for a day (creates the row if missing). */
 export async function incrementCount(
   db: DB,
   habitId: string,
@@ -136,9 +221,34 @@ export async function incrementCount(
   return next;
 }
 
+export async function setNote(
+  db: DB,
+  habitId: string,
+  date: DateKey,
+  note: string | null,
+): Promise<void> {
+  const existing = await db
+    .select({ id: completions.id })
+    .from(completions)
+    .where(and(eq(completions.habitId, habitId), eq(completions.date, date)))
+    .limit(1);
+  if (existing.length === 0) {
+    // Create with count=1 so the note has a row to attach to.
+    await db
+      .insert(completions)
+      .values({ habitId, date, count: 1, note: note?.trim() || null });
+    return;
+  }
+  await db
+    .update(completions)
+    .set({ note: note?.trim() || null })
+    .where(eq(completions.id, existing[0].id));
+}
+
+// ----------------------- aggregations --------------------------
+
 export type WeeklyCount = { weekStart: DateKey; count: number };
 
-/** Distinct-day count per ISO week (Mon-based), most recent `weeks` buckets. */
 export async function getWeeklyCounts(
   db: DB,
   habitId: string,
@@ -169,13 +279,13 @@ export async function getCompletionRate(
   from: DateKey,
   to: DateKey,
 ): Promise<number> {
-  const dates = await getCompletionsInRange(db, habitId, from, to);
+  const rows = await getCompletionsInRange(db, habitId, from, to);
   const fromDate = new Date(from);
   const toDate = new Date(to);
   const windowDays =
     Math.round((toDate.getTime() - fromDate.getTime()) / 86_400_000) + 1;
   if (windowDays <= 0) return 0;
-  return dates.length / windowDays;
+  return rows.length / windowDays;
 }
 
 export async function getTotalCompletions(
@@ -202,58 +312,231 @@ export async function getLastCompletion(
   return row?.date ?? null;
 }
 
+/** Number of active (not archived/paused) habits with no completion today. */
+export async function getPendingToday(
+  db: DB,
+  todayKey: DateKey,
+): Promise<{ pending: number; total: number }> {
+  const result = await db.execute<{
+    total: string;
+    done: string;
+  }>(sql`
+    SELECT
+      count(*)::text AS total,
+      count(c.id)::text AS done
+    FROM habits h
+    LEFT JOIN completions c
+      ON c.habit_id = h.id AND c.date = ${todayKey}
+    WHERE h.archived_at IS NULL AND h.paused_at IS NULL
+  `);
+  const rows = (result.rows ?? result) as unknown as {
+    total: string;
+    done: string;
+  }[];
+  const row = rows[0] ?? { total: "0", done: "0" };
+  const total = Number(row.total);
+  const done = Number(row.done);
+  return { total, pending: total - done };
+}
+
+/** Array of 7 entries [0..6] = [Sun..Sat] with percent completion on that dow. */
+export async function getWeekdayHistogram(
+  db: DB,
+  habitId: string,
+): Promise<{ dow: number; rate: number; count: number }[]> {
+  // Compute rate = completions on dow / occurrences of dow since first completion
+  const result = await db.execute<{
+    dow: string;
+    count: string;
+  }>(sql`
+    SELECT
+      extract(dow from date)::text AS dow,
+      count(*)::text AS count
+    FROM ${completions}
+    WHERE ${completions.habitId} = ${habitId}
+    GROUP BY 1
+    ORDER BY 1
+  `);
+  const rows = (result.rows ?? result) as unknown as {
+    dow: string;
+    count: string;
+  }[];
+  const buckets = new Array(7).fill(0).map((_, dow) => ({
+    dow,
+    count: 0,
+    rate: 0,
+  }));
+  const [first] = await db
+    .select({ d: completions.date })
+    .from(completions)
+    .where(eq(completions.habitId, habitId))
+    .orderBy(asc(completions.date))
+    .limit(1);
+
+  const totalDays = first
+    ? Math.round(
+        (Date.now() - new Date(first.d).getTime()) / 86_400_000,
+      ) + 1
+    : 0;
+
+  for (const r of rows) {
+    const dow = Number(r.dow);
+    const count = Number(r.count);
+    buckets[dow].count = count;
+    // Each weekday appears ~ totalDays / 7 times in the period
+    const occurrences = Math.max(1, Math.round(totalDays / 7));
+    buckets[dow].rate = Math.min(1, count / occurrences);
+  }
+  return buckets;
+}
+
+/**
+ * Current-streak value at the end of each day for the last N days.
+ * Used by the streak trend line chart.
+ */
+export async function getStreakHistory(
+  db: DB,
+  habitId: string,
+  days = 90,
+): Promise<{ date: DateKey; streak: number }[]> {
+  const rows = await db
+    .select({ date: completions.date })
+    .from(completions)
+    .where(eq(completions.habitId, habitId))
+    .orderBy(asc(completions.date));
+  const set = new Set(rows.map((r) => r.date));
+
+  const out: { date: DateKey; streak: number }[] = [];
+  const today = new Date();
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    const dKey = d.toISOString().slice(0, 10);
+    // Walk back from dKey while dates exist in set
+    let streak = 0;
+    const cursor = new Date(d);
+    while (set.has(cursor.toISOString().slice(0, 10))) {
+      streak += 1;
+      cursor.setDate(cursor.getDate() - 1);
+    }
+    out.push({ date: dKey, streak });
+  }
+  return out;
+}
+
+// --------------------------- settings ---------------------------
+
+export async function getSetting<T = unknown>(
+  db: DB,
+  key: string,
+): Promise<T | null> {
+  const [row] = await db
+    .select({ value: settings.value })
+    .from(settings)
+    .where(eq(settings.key, key))
+    .limit(1);
+  return (row?.value as T) ?? null;
+}
+
+export async function setSetting(
+  db: DB,
+  key: string,
+  value: unknown,
+): Promise<void> {
+  const jsonValue = JSON.stringify(value);
+  await db.execute(sql`
+    INSERT INTO ${settings} (key, value, updated_at)
+    VALUES (${key}, ${jsonValue}::jsonb, now())
+    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()
+  `);
+}
+
+// ---------------------- export / import -------------------------
+
 export interface ExportPayload {
-  version: 1;
+  version: 2;
   exportedAt: string;
   habits: Habit[];
-  completions: { habitId: string; date: DateKey; count: number }[];
+  completions: {
+    habitId: string;
+    date: DateKey;
+    count: number;
+    note: string | null;
+  }[];
+  settings: { key: string; value: unknown }[];
 }
 
 export async function exportAll(db: DB): Promise<ExportPayload> {
-  const habitRows = await db.select().from(habits).orderBy(asc(habits.createdAt));
+  const habitRows = await db
+    .select()
+    .from(habits)
+    .orderBy(asc(habits.sortOrder), asc(habits.createdAt));
   const completionRows = await db
     .select({
       habitId: completions.habitId,
       date: completions.date,
       count: completions.count,
+      note: completions.note,
     })
     .from(completions)
     .orderBy(asc(completions.habitId), asc(completions.date));
+  const settingRows = await db
+    .select({ key: settings.key, value: settings.value })
+    .from(settings);
   return {
-    version: 1,
+    version: 2,
     exportedAt: new Date().toISOString(),
     habits: habitRows,
     completions: completionRows,
+    settings: settingRows,
   };
 }
 
-/** Replaces all data with the payload. Throws on version mismatch. */
-export async function importAll(db: DB, payload: ExportPayload): Promise<void> {
-  if (payload.version !== 1) {
-    throw new Error(`Unsupported export version: ${payload.version}`);
+export async function importAll(
+  db: DB,
+  payload: ExportPayload | { version: number; [k: string]: unknown },
+): Promise<void> {
+  const version = (payload as { version: number }).version;
+  if (version !== 1 && version !== 2) {
+    throw new Error(`Unsupported export version: ${version}`);
   }
   await db.delete(completions);
   await db.delete(habits);
-  if (payload.habits.length > 0) {
+  await db.delete(settings);
+
+  const p = payload as ExportPayload;
+  if (p.habits?.length) {
     await db.insert(habits).values(
-      payload.habits.map((h) => ({
+      p.habits.map((h: Habit, i: number) => ({
         id: h.id,
         name: h.name,
         description: h.description,
         color: h.color,
         targetPerWeek: h.targetPerWeek,
+        targetPerDay: h.targetPerDay ?? null,
+        unit: h.unit ?? null,
+        isNegative: h.isNegative ?? false,
+        tag: h.tag ?? null,
+        sortOrder: h.sortOrder ?? i + 1,
+        pausedAt: h.pausedAt ? new Date(h.pausedAt) : null,
         archivedAt: h.archivedAt ? new Date(h.archivedAt) : null,
         createdAt: new Date(h.createdAt),
       })),
     );
   }
-  if (payload.completions.length > 0) {
+  if (p.completions?.length) {
     await db.insert(completions).values(
-      payload.completions.map((c) => ({
+      p.completions.map((c) => ({
         habitId: c.habitId,
         date: c.date,
         count: c.count,
+        note: c.note ?? null,
       })),
     );
+  }
+  if (p.settings?.length) {
+    for (const s of p.settings) {
+      await setSetting(db, s.key, s.value);
+    }
   }
 }

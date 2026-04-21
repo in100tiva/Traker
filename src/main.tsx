@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { Toaster } from "sonner";
 import App from "./App";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import "./index.css";
 
 if ("serviceWorker" in navigator && import.meta.env.PROD) {
@@ -14,7 +15,9 @@ if ("serviceWorker" in navigator && import.meta.env.PROD) {
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <App />
-    <Toaster position="bottom-right" theme="dark" richColors />
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
+    <Toaster position="bottom-right" richColors closeButton />
   </React.StrictMode>,
 );

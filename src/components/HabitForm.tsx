@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -10,8 +10,10 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/store/useUIStore";
+import type { Habit } from "@/db/schema";
 
 const COLORS = [
   "#22c55e",
@@ -22,50 +24,110 @@ const COLORS = [
   "#ec4899",
 ];
 
-interface Props {
-  onCreate: (input: {
-    name: string;
-    description?: string | null;
-    color?: string;
-    targetPerWeek?: number;
-  }) => Promise<{ id: string } | null>;
-  onCreated?: (id: string) => void;
+export interface HabitFormInput {
+  name: string;
+  description?: string | null;
+  color?: string;
+  targetPerWeek?: number;
+  targetPerDay?: number | null;
+  unit?: string | null;
+  isNegative?: boolean;
+  tag?: string | null;
 }
 
-export function HabitForm({ onCreate, onCreated }: Props) {
+interface Props {
+  onCreate: (input: HabitFormInput) => Promise<{ id: string } | null>;
+  onUpdate?: (id: string, patch: HabitFormInput) => Promise<void>;
+  editing?: Habit | null;
+  onCreated?: (id: string) => void;
+  onCloseEdit?: () => void;
+}
+
+export function HabitForm({
+  onCreate,
+  onUpdate,
+  editing,
+  onCreated,
+  onCloseEdit,
+}: Props) {
   const { isCreateOpen, closeCreate } = useUIStore();
+  const isEdit = Boolean(editing);
+  const open = isCreateOpen || isEdit;
+
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [color, setColor] = useState(COLORS[0]);
   const [targetPerWeek, setTargetPerWeek] = useState(7);
+  const [targetPerDay, setTargetPerDay] = useState<number | "">("");
+  const [unit, setUnit] = useState("");
+  const [isNegative, setIsNegative] = useState(false);
+  const [tag, setTag] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (editing) {
+      setName(editing.name);
+      setDescription(editing.description ?? "");
+      setColor(editing.color);
+      setTargetPerWeek(editing.targetPerWeek);
+      setTargetPerDay(editing.targetPerDay ?? "");
+      setUnit(editing.unit ?? "");
+      setIsNegative(editing.isNegative);
+      setTag(editing.tag ?? "");
+    } else if (!isCreateOpen) {
+      // reset when dialog closes
+      setName("");
+      setDescription("");
+      setColor(COLORS[0]);
+      setTargetPerWeek(7);
+      setTargetPerDay("");
+      setUnit("");
+      setIsNegative(false);
+      setTag("");
+    }
+  }, [editing, isCreateOpen]);
+
+  function handleOpenChange(nextOpen: boolean) {
+    if (nextOpen) return;
+    if (isEdit) onCloseEdit?.();
+    else closeCreate();
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) return;
     setSubmitting(true);
-    const row = await onCreate({
+    const input: HabitFormInput = {
       name: name.trim(),
       description: description.trim() || null,
       color,
       targetPerWeek,
-    });
+      targetPerDay: targetPerDay === "" ? null : Number(targetPerDay),
+      unit: unit.trim() || null,
+      isNegative,
+      tag: tag.trim() || null,
+    };
+
+    if (editing && onUpdate) {
+      await onUpdate(editing.id, input);
+      onCloseEdit?.();
+    } else {
+      const row = await onCreate(input);
+      closeCreate();
+      if (row) onCreated?.(row.id);
+    }
     setSubmitting(false);
-    setName("");
-    setDescription("");
-    setColor(COLORS[0]);
-    setTargetPerWeek(7);
-    closeCreate();
-    if (row) onCreated?.(row.id);
   }
 
   return (
-    <Dialog open={isCreateOpen} onOpenChange={(o) => !o && closeCreate()}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Novo hábito</DialogTitle>
+          <DialogTitle>{isEdit ? "Editar hábito" : "Novo hábito"}</DialogTitle>
           <DialogDescription>
-            Defina um hábito para acompanhar regularmente.
+            {isEdit
+              ? "Ajuste as propriedades do hábito."
+              : "Defina um hábito para acompanhar regularmente."}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -75,7 +137,7 @@ export function HabitForm({ onCreate, onCreated }: Props) {
               id="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Ler 30 minutos"
+              placeholder={isNegative ? "Não beber refrigerante" : "Ler 30 minutos"}
               autoFocus
               required
             />
@@ -89,9 +151,24 @@ export function HabitForm({ onCreate, onCreated }: Props) {
               placeholder="Antes de dormir"
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="target">Meta semanal</Label>
-            <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between rounded-md border p-3">
+            <div>
+              <Label htmlFor="negative" className="text-sm font-medium">
+                Hábito negativo
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Marque os dias em que conseguiu evitar (abstinência).
+              </p>
+            </div>
+            <Switch
+              id="negative"
+              checked={isNegative}
+              onCheckedChange={setIsNegative}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="target">Meta semanal</Label>
               <Input
                 id="target"
                 type="number"
@@ -100,13 +177,43 @@ export function HabitForm({ onCreate, onCreated }: Props) {
                 value={targetPerWeek}
                 onChange={(e) => {
                   const v = Number(e.target.value);
-                  if (Number.isFinite(v)) setTargetPerWeek(Math.max(1, Math.min(7, v)));
+                  if (Number.isFinite(v))
+                    setTargetPerWeek(Math.max(1, Math.min(7, v)));
                 }}
-                className="w-20"
               />
-              <span className="text-sm text-muted-foreground">
-                {targetPerWeek === 7 ? "dias por semana (diário)" : "dias por semana"}
-              </span>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="tag">Tag (opcional)</Label>
+              <Input
+                id="tag"
+                value={tag}
+                onChange={(e) => setTag(e.target.value)}
+                placeholder="saúde"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="tpd">Alvo diário</Label>
+              <Input
+                id="tpd"
+                type="number"
+                min={1}
+                value={targetPerDay}
+                onChange={(e) =>
+                  setTargetPerDay(e.target.value === "" ? "" : Number(e.target.value))
+                }
+                placeholder="(opcional)"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="unit">Unidade</Label>
+              <Input
+                id="unit"
+                value={unit}
+                onChange={(e) => setUnit(e.target.value)}
+                placeholder="páginas, km…"
+              />
             </div>
           </div>
           <div className="space-y-2">
@@ -133,13 +240,13 @@ export function HabitForm({ onCreate, onCreated }: Props) {
             <Button
               type="button"
               variant="ghost"
-              onClick={closeCreate}
+              onClick={() => handleOpenChange(false)}
               disabled={submitting}
             >
               Cancelar
             </Button>
             <Button type="submit" disabled={submitting || !name.trim()}>
-              Criar
+              {isEdit ? "Salvar" : "Criar"}
             </Button>
           </DialogFooter>
         </form>

@@ -54,5 +54,23 @@
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
       Ubuntu, Cantarell, sans-serif;
     -webkit-font-smoothing: antialiased;
+    overscroll-behavior: none;
+  }
+
+  /* Make clickable areas bigger on touch devices for accessibility */
+  @media (pointer: coarse) {
+    button {
+      min-height: 36px;
+    }
+  }
+
+  /* Respect reduced motion preference */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 }
