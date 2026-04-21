@@ -1,47 +1,81 @@
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
+@import "@fontsource/space-grotesk/500.css";
+@import "@fontsource/space-grotesk/600.css";
+@import "@fontsource/space-grotesk/700.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
+    /* Neutral scale (light) */
     --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
+    --foreground: 240 10% 4%;
+    --surface-1: 0 0% 99%;       /* card base */
+    --surface-2: 240 5% 96%;     /* elevated */
+    --surface-3: 240 6% 93%;     /* hover / inputs */
     --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
-    --primary: 142 71% 45%;
+    --card-foreground: 240 10% 4%;
+    --primary: 142 72% 45%;
     --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
-    --destructive: 0 84.2% 60.2%;
+    --primary-muted: 142 52% 88%;
+    --secondary: 240 5% 96%;
+    --secondary-foreground: 240 6% 10%;
+    --muted: 240 5% 96%;
+    --muted-foreground: 240 4% 46%;
+    --accent: 240 5% 96%;
+    --accent-foreground: 240 6% 10%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 142 71% 45%;
-    --radius: 0.5rem;
+    --success: 142 72% 45%;
+    --warning: 38 92% 50%;
+    --info: 217 91% 60%;
+    --border: 240 6% 90%;
+    --input: 240 6% 90%;
+    --ring: 142 72% 45%;
+    --radius: 0.75rem;
+
+    /* Elevation */
+    --shadow-sm: 0 1px 2px 0 hsl(240 10% 4% / 0.05);
+    --shadow-md: 0 4px 16px -4px hsl(240 10% 4% / 0.08);
+    --shadow-lg: 0 12px 32px -8px hsl(240 10% 4% / 0.12);
+    --shadow-glow: 0 0 0 0 hsl(var(--primary) / 0);
   }
 
   .dark {
-    --background: 240 10% 3.9%;
+    --background: 240 10% 3.5%;
     --foreground: 0 0% 98%;
-    --card: 240 8% 6%;
+    --surface-1: 240 9% 6%;
+    --surface-2: 240 8% 9%;
+    --surface-3: 240 7% 13%;
+    --card: 240 9% 6%;
     --card-foreground: 0 0% 98%;
-    --primary: 142 71% 45%;
-    --primary-foreground: 0 0% 9%;
-    --secondary: 240 3.7% 15.9%;
+    --primary: 142 70% 50%;
+    --primary-foreground: 240 10% 3.5%;
+    --primary-muted: 142 40% 22%;
+    --secondary: 240 7% 13%;
     --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
+    --muted: 240 7% 13%;
+    --muted-foreground: 240 5% 65%;
+    --accent: 240 7% 13%;
     --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
+    --destructive: 0 63% 45%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 142 71% 45%;
+    --success: 142 70% 50%;
+    --warning: 38 92% 55%;
+    --info: 217 91% 65%;
+    --border: 240 7% 15%;
+    --input: 240 7% 15%;
+    --ring: 142 70% 50%;
+
+    --shadow-sm: 0 1px 2px 0 hsl(0 0% 0% / 0.4);
+    --shadow-md: 0 4px 24px -8px hsl(0 0% 0% / 0.5);
+    --shadow-lg: 0 16px 48px -12px hsl(0 0% 0% / 0.6);
+    --shadow-glow: 0 0 32px -4px hsl(var(--primary) / 0.35);
   }
 }
 
@@ -49,22 +83,40 @@
   * {
     @apply border-border;
   }
+  html {
+    font-family:
+      "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+      Ubuntu, Cantarell, sans-serif;
+    font-feature-settings:
+      "cv11", "ss01", "ss03";
+  }
   body {
     @apply bg-background text-foreground;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
-      Ubuntu, Cantarell, sans-serif;
     -webkit-font-smoothing: antialiased;
     overscroll-behavior: none;
   }
+  .font-display {
+    font-family: "Space Grotesk", "Inter", sans-serif;
+    letter-spacing: -0.02em;
+  }
+  .font-tabular {
+    font-variant-numeric: tabular-nums;
+  }
 
-  /* Make clickable areas bigger on touch devices for accessibility */
+  /* Nicer focus ring */
+  :focus-visible {
+    outline: none;
+  }
+  *:focus-visible {
+    @apply ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
   @media (pointer: coarse) {
     button {
       min-height: 36px;
     }
   }
 
-  /* Respect reduced motion preference */
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
@@ -72,5 +124,101 @@
       animation-duration: 0.01ms !important;
       transition-duration: 0.01ms !important;
     }
+  }
+
+  /* Custom scrollbar (dark-ish) */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.4);
+  }
+}
+
+@layer utilities {
+  .shadow-glow {
+    box-shadow: var(--shadow-glow);
+  }
+  .shadow-card {
+    box-shadow: var(--shadow-sm);
+  }
+  .shadow-elevated {
+    box-shadow: var(--shadow-md);
+  }
+
+  @keyframes pulse-flame {
+    0%,
+    100% {
+      transform: scale(1) rotate(-2deg);
+      filter: drop-shadow(0 0 4px currentColor);
+    }
+    50% {
+      transform: scale(1.15) rotate(2deg);
+      filter: drop-shadow(0 0 8px currentColor);
+    }
+  }
+  .animate-flame {
+    animation: pulse-flame 1.5s ease-in-out infinite;
+  }
+
+  @keyframes check-pop {
+    0% {
+      transform: scale(0.8);
+    }
+    50% {
+      transform: scale(1.2);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+  .animate-check {
+    animation: check-pop 0.3s ease-out;
+  }
+
+  @keyframes draw {
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: -200% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
+  }
+  .animate-shimmer {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--muted)) 0%,
+      hsl(var(--surface-3)) 50%,
+      hsl(var(--muted)) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+  }
+
+  @keyframes today-glow {
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 hsl(var(--foreground) / 0.25);
+    }
+    50% {
+      box-shadow: 0 0 0 3px hsl(var(--foreground) / 0.18);
+    }
+  }
+  .animate-today-glow {
+    animation: today-glow 2.2s ease-in-out infinite;
   }
 }

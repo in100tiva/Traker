@@ -18,6 +18,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import type { Habit } from "@/db/schema";
 import { Button } from "@/components/ui/button";
+import { LogoWordmark } from "./Logo";
 import { useUIStore } from "@/store/useUIStore";
 import { cn } from "@/lib/utils";
 
@@ -36,6 +37,7 @@ export function HabitList({ habits, loading, onReorder }: Props) {
     showArchived,
     toggleShowArchived,
     setView,
+    setSidebarOpen,
   } = useUIStore();
 
   const sensors = useSensors(
@@ -53,26 +55,37 @@ export function HabitList({ habits, loading, onReorder }: Props) {
     onReorder(reordered.map((h) => h.id));
   }
 
+  function selectHabit(id: string) {
+    setSelectedHabit(id);
+    setView("habit");
+    setSidebarOpen(false);
+  }
+
   return (
-    <aside className="flex h-full w-64 shrink-0 flex-col border-r bg-card/50">
-      <div className="flex items-center justify-between border-b p-4">
-        <h2 className="text-sm font-semibold">
-          {showArchived ? "Arquivados" : "Hábitos"}
-        </h2>
+    <aside className="flex h-full w-64 shrink-0 flex-col border-r bg-surface-1">
+      <div className="flex items-center justify-between border-b px-4 py-3.5">
+        <LogoWordmark />
         {!showArchived && (
-          <Button size="sm" variant="ghost" onClick={openCreate}>
+          <Button
+            size="iconSm"
+            variant="ghost"
+            onClick={openCreate}
+            aria-label="Novo hábito"
+          >
             <Plus className="h-4 w-4" />
-            Novo
           </Button>
         )}
       </div>
       {!showArchived && (
         <button
           type="button"
-          onClick={() => setView("today")}
+          onClick={() => {
+            setView("today");
+            setSidebarOpen(false);
+          }}
           className={cn(
             "flex items-center gap-2 border-b px-4 py-3 text-left text-sm transition-colors hover:bg-accent",
-            activeView === "today" && "bg-accent",
+            activeView === "today" && "bg-accent font-medium",
           )}
         >
           <Home className="h-4 w-4" />
@@ -87,7 +100,7 @@ export function HabitList({ habits, loading, onReorder }: Props) {
           <div className="p-4 text-xs text-muted-foreground">
             {showArchived
               ? "Nenhum hábito arquivado."
-              : "Nenhum hábito ainda. Clique em Novo para começar."}
+              : "Nenhum hábito ainda."}
           </div>
         )}
         {!showArchived && habits.length > 0 ? (
@@ -108,10 +121,7 @@ export function HabitList({ habits, loading, onReorder }: Props) {
                     active={
                       h.id === selectedHabitId && activeView === "habit"
                     }
-                    onClick={() => {
-                      setSelectedHabit(h.id);
-                      setView("habit");
-                    }}
+                    onClick={() => selectHabit(h.id)}
                   />
                 ))}
               </ul>
@@ -123,24 +133,20 @@ export function HabitList({ habits, loading, onReorder }: Props) {
               <li key={h.id}>
                 <button
                   type="button"
-                  onClick={() => {
-                    setSelectedHabit(h.id);
-                    setView("habit");
-                  }}
+                  onClick={() => selectHabit(h.id)}
                   className={cn(
                     "flex w-full items-center gap-2 px-4 py-3 text-left text-sm transition-colors hover:bg-accent",
                     h.id === selectedHabitId &&
                       activeView === "habit" &&
-                      "bg-accent",
+                      "bg-accent font-medium",
                     h.archivedAt && "opacity-60",
                   )}
                 >
-                  <span
-                    className="h-3 w-3 shrink-0 rounded-full"
-                    style={{ backgroundColor: h.color }}
-                  />
+                  <HabitDot habit={h} />
                   <span className="flex-1 truncate">{h.name}</span>
-                  {h.pausedAt && <Pause className="h-3 w-3 text-muted-foreground" />}
+                  {h.pausedAt && (
+                    <Pause className="h-3 w-3 text-muted-foreground" />
+                  )}
                   {h.archivedAt && (
                     <Archive className="h-3 w-3 text-muted-foreground" />
                   )}
@@ -165,6 +171,18 @@ export function HabitList({ habits, loading, onReorder }: Props) {
   );
 }
 
+function HabitDot({ habit }: { habit: Habit }) {
+  if (habit.emoji) {
+    return <span className="text-base leading-none">{habit.emoji}</span>;
+  }
+  return (
+    <span
+      className="h-3 w-3 shrink-0 rounded-full"
+      style={{ backgroundColor: habit.color }}
+    />
+  );
+}
+
 interface SortableRowProps {
   habit: Habit;
   active: boolean;
@@ -183,11 +201,17 @@ function SortableRow({ habit, active, onClick }: SortableRowProps) {
     <li ref={setNodeRef} style={style}>
       <div
         className={cn(
-          "group flex items-center gap-1 transition-colors hover:bg-accent",
+          "group relative flex items-center gap-1 transition-colors hover:bg-accent",
           active && "bg-accent",
           habit.pausedAt && "opacity-60",
         )}
       >
+        {active && (
+          <div
+            className="absolute inset-y-1 left-0 w-0.5 rounded-r-full"
+            style={{ backgroundColor: habit.color }}
+          />
+        )}
         <button
           type="button"
           {...attributes}
@@ -200,14 +224,16 @@ function SortableRow({ habit, active, onClick }: SortableRowProps) {
         <button
           type="button"
           onClick={onClick}
-          className="flex flex-1 items-center gap-2 py-3 pr-4 text-left text-sm"
+          className={cn(
+            "flex flex-1 items-center gap-2 py-3 pr-4 text-left text-sm",
+            active && "font-medium",
+          )}
         >
-          <span
-            className="h-3 w-3 shrink-0 rounded-full"
-            style={{ backgroundColor: habit.color }}
-          />
+          <HabitDot habit={habit} />
           <span className="flex-1 truncate">{habit.name}</span>
-          {habit.pausedAt && <Pause className="h-3 w-3 text-muted-foreground" />}
+          {habit.pausedAt && (
+            <Pause className="h-3 w-3 text-muted-foreground" />
+          )}
         </button>
       </div>
     </li>

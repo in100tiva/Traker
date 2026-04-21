@@ -17,6 +17,7 @@ interface HabitRow {
   id: string;
   name: string;
   description: string | null;
+  emoji: string | null;
   color: string;
   target_per_week: number;
   target_per_day: number | null;
@@ -34,6 +35,7 @@ function toHabit(r: HabitRow): Habit {
     id: r.id,
     name: r.name,
     description: r.description,
+    emoji: r.emoji,
     color: r.color,
     targetPerWeek: r.target_per_week,
     targetPerDay: r.target_per_day,

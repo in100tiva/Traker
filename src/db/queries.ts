@@ -52,6 +52,7 @@ export async function createHabit(
   input: {
     name: string;
     description?: string | null;
+    emoji?: string | null;
     color?: string;
     targetPerWeek?: number;
     targetPerDay?: number | null;
@@ -68,6 +69,7 @@ export async function createHabit(
     .values({
       name: input.name,
       description: input.description ?? null,
+      emoji: input.emoji ?? null,
       color: input.color ?? "#22c55e",
       targetPerWeek: input.targetPerWeek ?? 7,
       targetPerDay: input.targetPerDay ?? null,
@@ -86,6 +88,7 @@ export async function updateHabit(
   patch: Partial<{
     name: string;
     description: string | null;
+    emoji: string | null;
     color: string;
     targetPerWeek: number;
     targetPerDay: number | null;
@@ -511,6 +514,7 @@ export async function importAll(
         id: h.id,
         name: h.name,
         description: h.description,
+        emoji: h.emoji ?? null,
         color: h.color,
         targetPerWeek: h.targetPerWeek,
         targetPerDay: h.targetPerDay ?? null,

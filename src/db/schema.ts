@@ -18,6 +18,7 @@ export const habits = pgTable("habits", {
     .default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   description: text("description"),
+  emoji: text("emoji"),
   color: text("color").notNull().default("#22c55e"),
   targetPerWeek: smallint("target_per_week").notNull().default(7),
   targetPerDay: smallint("target_per_day"),

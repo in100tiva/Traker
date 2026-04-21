@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from "react";
+import { motion } from "framer-motion";
 import {
   Archive,
   ArchiveRestore,
@@ -24,6 +25,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { StreakBadge } from "./StreakBadge";
+import { MilestoneChips } from "./MilestoneChips";
+import { WeeklyProgressDots } from "./WeeklyProgressDots";
 import { Heatmap } from "./Heatmap";
 import { WeeklyChart } from "./WeeklyChart";
 import { WeekdayHistogram } from "./WeekdayHistogram";
@@ -34,6 +37,7 @@ import {
   calculateWeeklyGoalStreak,
 } from "@/lib/streak";
 import { checkAndCelebrateMilestone } from "@/lib/milestones";
+import { haptics } from "@/lib/haptics";
 import { todayKey, toDateKey, type DateKey } from "@/lib/date";
 
 interface Props {
@@ -98,7 +102,6 @@ export function HabitCard({
   const thisWeekKey = toDateKey(startOfWeek(new Date(), { weekStartsOn: 1 }));
   const thisWeekCount =
     weekly.find((w) => w.weekStart === thisWeekKey)?.count ?? 0;
-  const weeklyProgress = Math.min(1, thisWeekCount / habit.targetPerWeek);
   const weeklyRemaining = Math.max(0, habit.targetPerWeek - thisWeekCount);
 
   const dailyProgress =
@@ -112,44 +115,65 @@ export function HabitCard({
   return (
     <div className="space-y-6">
       {isArchived && (
-        <div className="rounded-md border border-dashed bg-muted/30 p-3 text-sm text-muted-foreground">
+        <div className="flex items-center gap-2 rounded-lg border border-dashed bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+          <Archive className="h-4 w-4" />
           Arquivado em{" "}
-          {format(habit.archivedAt!, "dd/MM/yyyy", { locale: ptBR })}. Dados
-          históricos preservados.
+          {format(habit.archivedAt!, "dd/MM/yyyy", { locale: ptBR })} · dados
+          preservados.
         </div>
       )}
       {isPaused && !isArchived && (
-        <div className="rounded-md border border-dashed bg-muted/30 p-3 text-sm text-muted-foreground">
-          Pausado em{" "}
-          {format(habit.pausedAt!, "dd/MM/yyyy", { locale: ptBR })}. Não aparece
-          em "Hoje"; streak não é quebrada pela pausa.
+        <div className="flex items-center gap-2 rounded-lg border border-dashed bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+          <Pause className="h-4 w-4" />
+          Pausado em {format(habit.pausedAt!, "dd/MM/yyyy", { locale: ptBR })} ·
+          streak não é quebrada.
         </div>
       )}
-      <Card>
-        <CardHeader className="flex-col gap-3 space-y-0 md:flex-row md:items-start md:justify-between">
+
+      {/* HERO */}
+      <Card
+        elevated
+        className="relative overflow-hidden"
+        style={{
+          backgroundImage: `radial-gradient(circle at top right, ${habit.color}18, transparent 55%)`,
+        }}
+      >
+        <CardHeader className="gap-4 pb-4 md:flex-row md:items-start md:justify-between md:space-y-0">
           <div className="flex items-start gap-3">
-            <span
-              className="mt-1 h-4 w-4 shrink-0 rounded-full"
-              style={{ backgroundColor: habit.color }}
-            />
+            <div
+              className="grid h-12 w-12 shrink-0 place-items-center rounded-xl text-2xl"
+              style={{
+                backgroundColor: `${habit.color}22`,
+                border: `1.5px solid ${habit.color}`,
+              }}
+            >
+              {habit.emoji ?? (
+                <span
+                  className="h-3 w-3 rounded-full"
+                  style={{ backgroundColor: habit.color }}
+                />
+              )}
+            </div>
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <CardTitle>{habit.name}</CardTitle>
+                <CardTitle className="text-2xl">{habit.name}</CardTitle>
                 {habit.isNegative && (
-                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                     Abstinência
                   </span>
                 )}
                 {habit.tag && (
-                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
                     #{habit.tag}
                   </span>
                 )}
               </div>
               {habit.description && (
-                <CardDescription>{habit.description}</CardDescription>
+                <CardDescription className="mt-0.5">
+                  {habit.description}
+                </CardDescription>
               )}
-              <CardDescription className="mt-1">
+              <CardDescription className="mt-1 text-xs">
                 Meta: {habit.targetPerWeek}×/semana
                 {habit.targetPerDay ? (
                   <>
@@ -165,7 +189,10 @@ export function HabitCard({
               <>
                 <Button
                   variant={doneToday ? "secondary" : "default"}
-                  onClick={onToggleToday}
+                  onClick={() => {
+                    haptics.tap();
+                    onToggleToday();
+                  }}
                 >
                   <Check className="h-4 w-4" />
                   {doneToday
@@ -255,60 +282,70 @@ export function HabitCard({
             </Button>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
+
+        <CardContent className="space-y-6">
           <StreakBadge
             current={current}
             longest={longest}
             weeklyGoalStreak={weeklyGoalStreak}
+            color={habit.color}
           />
+
           {dailyProgress !== null && (
             <div>
-              <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
-                <span>
-                  Hoje: {todayCount}/{habit.targetPerDay} {habit.unit ?? ""}
+              <div className="mb-1.5 flex items-center justify-between text-xs">
+                <span className="font-medium text-muted-foreground">
+                  Hoje
                 </span>
-                <span>{Math.round(dailyProgress * 100)}%</span>
+                <span className="tabular-nums">
+                  <span className="font-semibold">{todayCount}</span>
+                  <span className="text-muted-foreground">
+                    /{habit.targetPerDay} {habit.unit ?? ""}
+                  </span>
+                </span>
               </div>
               <div className="h-2 overflow-hidden rounded-full bg-muted">
-                <div
-                  className="h-full transition-all"
-                  style={{
-                    width: `${dailyProgress * 100}%`,
-                    backgroundColor: habit.color,
-                  }}
+                <motion.div
+                  className="h-full rounded-full"
+                  style={{ backgroundColor: habit.color }}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${dailyProgress * 100}%` }}
+                  transition={{ duration: 0.5, ease: "easeOut" }}
                 />
               </div>
             </div>
           )}
+
+          <WeeklyProgressDots
+            completedDates={completedDates}
+            color={habit.color}
+            target={habit.targetPerWeek}
+          />
+
+          {weeklyRemaining === 0 && habit.targetPerWeek < 7 && (
+            <div className="text-center text-sm text-primary">
+              Meta semanal atingida 🎯
+            </div>
+          )}
+
           <div>
-            <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
-              <span>
-                Esta semana: {thisWeekCount}/{habit.targetPerWeek}
-              </span>
-              <span>
-                {weeklyRemaining === 0
-                  ? "Meta atingida 🎯"
-                  : `Faltam ${weeklyRemaining}`}
-              </span>
+            <div className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Marcos
             </div>
-            <div className="h-2 overflow-hidden rounded-full bg-muted">
-              <div
-                className="h-full transition-all"
-                style={{
-                  width: `${weeklyProgress * 100}%`,
-                  backgroundColor: habit.color,
-                }}
-              />
-            </div>
+            <MilestoneChips
+              currentStreak={longest > current ? longest : current}
+              color={habit.color}
+            />
           </div>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Últimos 12 meses</CardTitle>
+          <CardTitle className="text-base">Atividade</CardTitle>
           <CardDescription>
-            Clique em um dia para marcar/nota — ponto branco = dia com nota
+            Clique em um dia para marcar ou adicionar uma nota. O ponto branco
+            indica dias com nota.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -324,11 +361,15 @@ export function HabitCard({
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Completude semanal</CardTitle>
+            <CardTitle className="text-base">Semanas recentes</CardTitle>
             <CardDescription>Últimas 12 semanas</CardDescription>
           </CardHeader>
           <CardContent>
-            <WeeklyChart data={weekly} color={habit.color} />
+            <WeeklyChart
+              data={weekly}
+              color={habit.color}
+              target={habit.targetPerWeek}
+            />
           </CardContent>
         </Card>
         <Card>
@@ -349,7 +390,10 @@ export function HabitCard({
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Por dia da semana</CardTitle>
-          <CardDescription>Taxa de completude por weekday</CardDescription>
+          <CardDescription>
+            Percentual de dias da semana com marcação, desde a primeira
+            completada
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <WeekdayHistogram

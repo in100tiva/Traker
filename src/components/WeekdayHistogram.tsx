@@ -3,6 +3,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -48,45 +49,66 @@ export function WeekdayHistogram({ bundle, habitId, color }: Props) {
   if (data.every((d) => d.count === 0)) {
     return (
       <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
-        Sem dados suficientes para o histograma semanal.
+        Sem dados suficientes ainda.
       </div>
     );
   }
 
+  const maxRate = Math.max(...data.map((d) => d.rate));
+
   return (
     <ResponsiveContainer width="100%" height={160}>
-      <BarChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+      <BarChart data={data} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
         <CartesianGrid
-          strokeDasharray="3 3"
+          strokeDasharray="2 4"
           stroke="hsl(var(--border))"
           vertical={false}
+          strokeOpacity={0.6}
         />
         <XAxis
           dataKey="day"
           stroke="hsl(var(--muted-foreground))"
-          fontSize={11}
+          fontSize={10}
           tickLine={false}
           axisLine={false}
+          dy={4}
         />
         <YAxis
           stroke="hsl(var(--muted-foreground))"
-          fontSize={11}
+          fontSize={10}
           tickLine={false}
           axisLine={false}
           unit="%"
           domain={[0, 100]}
+          width={30}
         />
         <Tooltip
-          cursor={{ fill: "hsl(var(--muted))" }}
-          contentStyle={{
-            background: "hsl(var(--card))",
-            border: "1px solid hsl(var(--border))",
-            borderRadius: 6,
-            fontSize: 12,
+          cursor={{ fill: "hsl(var(--muted))", opacity: 0.35 }}
+          content={({ active, payload }) => {
+            if (!active || !payload?.length) return null;
+            const d = payload[0].payload as {
+              day: string;
+              rate: number;
+              count: number;
+            };
+            return (
+              <div className="rounded-lg border bg-card px-3 py-2 text-xs shadow-elevated">
+                <div className="font-medium">{d.day}</div>
+                <div className="text-muted-foreground">
+                  {d.rate}% · {d.count} marca{d.count === 1 ? "" : "s"}
+                </div>
+              </div>
+            );
           }}
-          formatter={(value: number) => [`${value}%`, "Taxa"]}
         />
-        <Bar dataKey="rate" fill={color} radius={[4, 4, 0, 0]} />
+        <Bar dataKey="rate" radius={[6, 6, 2, 2]} animationDuration={500}>
+          {data.map((d, idx) => (
+            <Cell
+              key={idx}
+              fill={d.rate === maxRate ? color : `${color}88`}
+            />
+          ))}
+        </Bar>
       </BarChart>
     </ResponsiveContainer>
   );
