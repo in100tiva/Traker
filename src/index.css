@@ -12,37 +12,40 @@
 
 @layer base {
   :root {
-    /* Neutral scale (light) */
-    --background: 0 0% 100%;
+    /* Light theme — sem branco puro para dar mais respiração */
+    --background: 240 12% 97%;
     --foreground: 240 10% 4%;
-    --surface-1: 0 0% 99%;       /* card base */
-    --surface-2: 240 5% 96%;     /* elevated */
-    --surface-3: 240 6% 93%;     /* hover / inputs */
+    --surface-1: 0 0% 100%;
+    --surface-2: 240 6% 95%;
+    --surface-3: 240 6% 91%;
     --card: 0 0% 100%;
     --card-foreground: 240 10% 4%;
-    --primary: 142 72% 45%;
+    --primary: 142 72% 42%;
     --primary-foreground: 0 0% 98%;
     --primary-muted: 142 52% 88%;
-    --secondary: 240 5% 96%;
+    --secondary: 240 6% 94%;
     --secondary-foreground: 240 6% 10%;
-    --muted: 240 5% 96%;
-    --muted-foreground: 240 4% 46%;
-    --accent: 240 5% 96%;
+    --muted: 240 6% 94%;
+    --muted-foreground: 240 4% 42%;
+    --accent: 240 6% 92%;
     --accent-foreground: 240 6% 10%;
-    --destructive: 0 72% 51%;
+    --destructive: 0 72% 48%;
     --destructive-foreground: 0 0% 98%;
-    --success: 142 72% 45%;
-    --warning: 38 92% 50%;
-    --info: 217 91% 60%;
-    --border: 240 6% 90%;
-    --input: 240 6% 90%;
-    --ring: 142 72% 45%;
+    --success: 142 72% 42%;
+    --warning: 32 92% 48%;
+    --info: 217 91% 55%;
+    --border: 240 6% 88%;
+    --input: 240 6% 86%;
+    --ring: 142 72% 42%;
     --radius: 0.75rem;
 
-    /* Elevation */
-    --shadow-sm: 0 1px 2px 0 hsl(240 10% 4% / 0.05);
-    --shadow-md: 0 4px 16px -4px hsl(240 10% 4% / 0.08);
-    --shadow-lg: 0 12px 32px -8px hsl(240 10% 4% / 0.12);
+    /* Elevação mais nítida no light */
+    --shadow-sm: 0 1px 3px 0 hsl(240 10% 4% / 0.08),
+      0 1px 2px -1px hsl(240 10% 4% / 0.04);
+    --shadow-md: 0 4px 16px -4px hsl(240 10% 4% / 0.1),
+      0 2px 6px -2px hsl(240 10% 4% / 0.06);
+    --shadow-lg: 0 16px 40px -12px hsl(240 10% 4% / 0.18),
+      0 4px 12px -4px hsl(240 10% 4% / 0.08);
     --shadow-glow: 0 0 0 0 hsl(var(--primary) / 0);
   }
 
@@ -72,9 +75,9 @@
     --input: 240 7% 15%;
     --ring: 142 70% 50%;
 
-    --shadow-sm: 0 1px 2px 0 hsl(0 0% 0% / 0.4);
-    --shadow-md: 0 4px 24px -8px hsl(0 0% 0% / 0.5);
-    --shadow-lg: 0 16px 48px -12px hsl(0 0% 0% / 0.6);
+    --shadow-sm: 0 1px 2px 0 hsl(0 0% 0% / 0.5);
+    --shadow-md: 0 4px 24px -8px hsl(0 0% 0% / 0.55);
+    --shadow-lg: 0 16px 48px -12px hsl(0 0% 0% / 0.65);
     --shadow-glow: 0 0 32px -4px hsl(var(--primary) / 0.35);
   }
 }
@@ -103,7 +106,17 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* Nicer focus ring */
+  /* Remover spinner nativo dos inputs type=number em ambos os temas */
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+
   :focus-visible {
     outline: none;
   }
@@ -126,7 +139,6 @@
     }
   }
 
-  /* Custom scrollbar (dark-ish) */
   ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
@@ -184,12 +196,6 @@
     animation: check-pop 0.3s ease-out;
   }
 
-  @keyframes draw {
-    to {
-      stroke-dashoffset: 0;
-    }
-  }
-
   @keyframes shimmer {
     0% {
       background-position: -200% 0;
@@ -220,5 +226,13 @@
   }
   .animate-today-glow {
     animation: today-glow 2.2s ease-in-out infinite;
+  }
+
+  /* Interactive lift para cards clicáveis */
+  .lift-on-hover {
+    @apply transition-all duration-200;
+  }
+  .lift-on-hover:hover {
+    @apply -translate-y-px shadow-elevated;
   }
 }

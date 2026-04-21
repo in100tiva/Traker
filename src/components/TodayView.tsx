@@ -310,9 +310,9 @@ function HabitRow({
   return (
     <div
       className={cn(
-        "group relative flex items-center gap-3 overflow-hidden rounded-xl border bg-card p-3 transition-all",
+        "group relative flex items-center gap-3 overflow-hidden rounded-xl border bg-card p-3 shadow-card transition-all duration-200",
         done && "border-primary/30",
-        !disabled && "hover:shadow-elevated",
+        !disabled && "hover:-translate-y-px hover:border-foreground/20 hover:shadow-elevated",
       )}
       style={{
         backgroundImage: done

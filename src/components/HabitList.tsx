@@ -63,7 +63,7 @@ export function HabitList({ habits, loading, onReorder }: Props) {
 
   return (
     <aside className="flex h-full w-64 shrink-0 flex-col border-r bg-surface-1">
-      <div className="flex items-center justify-between border-b px-4 py-3.5">
+      <div className="flex items-center justify-between border-b bg-surface-1 px-4 py-3.5">
         <LogoWordmark />
         {!showArchived && (
           <Button
@@ -71,6 +71,7 @@ export function HabitList({ habits, loading, onReorder }: Props) {
             variant="ghost"
             onClick={openCreate}
             aria-label="Novo hábito"
+            className="hover:bg-primary/10 hover:text-primary"
           >
             <Plus className="h-4 w-4" />
           </Button>
