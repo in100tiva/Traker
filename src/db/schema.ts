@@ -25,6 +25,7 @@ export const habits = pgTable("habits", {
   unit: text("unit"),
   isNegative: boolean("is_negative").notNull().default(false),
   tag: text("tag"),
+  schedule: smallint("schedule").notNull().default(127),
   sortOrder: integer("sort_order").notNull().default(0),
   pausedAt: timestamp("paused_at", { withTimezone: true }),
   archivedAt: timestamp("archived_at", { withTimezone: true }),

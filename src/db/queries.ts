@@ -59,6 +59,7 @@ export async function createHabit(
     unit?: string | null;
     isNegative?: boolean;
     tag?: string | null;
+    schedule?: number;
   },
 ): Promise<Habit> {
   const [{ maxOrder }] = await db
@@ -76,6 +77,7 @@ export async function createHabit(
       unit: input.unit ?? null,
       isNegative: input.isNegative ?? false,
       tag: input.tag ?? null,
+      schedule: input.schedule ?? 127,
       sortOrder: Number(maxOrder) + 1,
     })
     .returning();
@@ -95,6 +97,7 @@ export async function updateHabit(
     unit: string | null;
     isNegative: boolean;
     tag: string | null;
+    schedule: number;
   }>,
 ): Promise<void> {
   await db.update(habits).set(patch).where(eq(habits.id, habitId));
@@ -315,11 +318,16 @@ export async function getLastCompletion(
   return row?.date ?? null;
 }
 
-/** Number of active (not archived/paused) habits with no completion today. */
+/**
+ * Number of active (not archived/paused) habits scheduled for `todayKey`
+ * minus those already completed today.
+ */
 export async function getPendingToday(
   db: DB,
   todayKey: DateKey,
 ): Promise<{ pending: number; total: number }> {
+  const dow = new Date(todayKey + "T00:00:00").getDay();
+  const bit = 1 << dow;
   const result = await db.execute<{
     total: string;
     done: string;
@@ -330,7 +338,9 @@ export async function getPendingToday(
     FROM habits h
     LEFT JOIN completions c
       ON c.habit_id = h.id AND c.date = ${todayKey}
-    WHERE h.archived_at IS NULL AND h.paused_at IS NULL
+    WHERE h.archived_at IS NULL
+      AND h.paused_at IS NULL
+      AND (h.schedule & ${bit}) != 0
   `);
   const rows = (result.rows ?? result) as unknown as {
     total: string;
@@ -521,6 +531,7 @@ export async function importAll(
         unit: h.unit ?? null,
         isNegative: h.isNegative ?? false,
         tag: h.tag ?? null,
+        schedule: h.schedule ?? 127,
         sortOrder: h.sortOrder ?? i + 1,
         pausedAt: h.pausedAt ? new Date(h.pausedAt) : null,
         archivedAt: h.archivedAt ? new Date(h.archivedAt) : null,

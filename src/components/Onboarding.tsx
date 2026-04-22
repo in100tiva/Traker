@@ -12,6 +12,13 @@ import {
 import { cn } from "@/lib/utils";
 import type { HabitFormInput } from "./HabitForm";
 
+// Bitmask helpers for clarity in the preset table
+// bit 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+const EVERY_DAY = 0b1111111; // 127
+const WEEKDAYS = 0b0111110; // 62 — Mon..Fri
+const MON_WED_FRI = 0b0101010; // 42 — academia/quintal clássico
+const SUN = 0b0000001; // 1 — só domingo (faxina)
+
 const PRESETS: (HabitFormInput & { id: string; emoji: string })[] = [
   {
     id: "read",
@@ -21,6 +28,7 @@ const PRESETS: (HabitFormInput & { id: string; emoji: string })[] = [
     targetPerWeek: 7,
     targetPerDay: 20,
     unit: "páginas",
+    schedule: EVERY_DAY,
   },
   {
     id: "meditate",
@@ -30,13 +38,15 @@ const PRESETS: (HabitFormInput & { id: string; emoji: string })[] = [
     targetPerWeek: 7,
     targetPerDay: 10,
     unit: "min",
+    schedule: EVERY_DAY,
   },
   {
-    id: "exercise",
-    emoji: "🏃",
-    name: "Exercitar-se",
+    id: "gym",
+    emoji: "🏋️",
+    name: "Academia (seg/qua/sex)",
     color: "#ef4444",
-    targetPerWeek: 4,
+    targetPerWeek: 3,
+    schedule: MON_WED_FRI,
   },
   {
     id: "water",
@@ -46,6 +56,31 @@ const PRESETS: (HabitFormInput & { id: string; emoji: string })[] = [
     targetPerWeek: 7,
     targetPerDay: 8,
     unit: "copos",
+    schedule: EVERY_DAY,
+  },
+  {
+    id: "yard",
+    emoji: "🌿",
+    name: "Limpar o quintal (domingo)",
+    color: "#84cc16",
+    targetPerWeek: 1,
+    schedule: SUN,
+  },
+  {
+    id: "room",
+    emoji: "🧹",
+    name: "Arrumar o quarto",
+    color: "#f59e0b",
+    targetPerWeek: 1,
+    schedule: SUN,
+  },
+  {
+    id: "journal",
+    emoji: "📝",
+    name: "Jornalzinho (dias úteis)",
+    color: "#f59e0b",
+    targetPerWeek: 5,
+    schedule: WEEKDAYS,
   },
   {
     id: "sleep",
@@ -53,13 +88,7 @@ const PRESETS: (HabitFormInput & { id: string; emoji: string })[] = [
     name: "Dormir 8h",
     color: "#6366f1",
     targetPerWeek: 7,
-  },
-  {
-    id: "journal",
-    emoji: "📝",
-    name: "Jornalzinho",
-    color: "#f59e0b",
-    targetPerWeek: 5,
+    schedule: EVERY_DAY,
   },
 ];
 

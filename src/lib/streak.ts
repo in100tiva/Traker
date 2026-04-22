@@ -1,57 +1,93 @@
 import { addDays, differenceInCalendarDays } from "date-fns";
 import { fromDateKey, toDateKey, type DateKey } from "./date";
+import {
+  ALL_DAYS_SCHEDULE,
+  isScheduledOn,
+  latestScheduledDayAtOrBefore,
+  prevScheduledDay,
+} from "./schedule";
 
 function normalize(dates: DateKey[]): DateKey[] {
   return Array.from(new Set(dates)).sort();
 }
 
 /**
- * Consecutive-day streak ending at (or just before) `today`.
- * If `today` is not marked but yesterday is, the streak continues from
- * yesterday (grace window).
+ * Consecutive-scheduled-day streak ending at (or just before) `today`.
+ * If `today` is a scheduled day but not yet marked, the streak continues
+ * from the previous scheduled day (grace window until end of day).
+ *
+ * When `schedule` is the full mask (127 = every day), this behaves like
+ * the classic daily streak. When schedule is e.g. Mon/Wed/Fri, a missing
+ * Tuesday doesn't break the streak.
  */
 export function calculateCurrentStreak(
   completedDates: DateKey[],
   today: DateKey,
+  schedule: number = ALL_DAYS_SCHEDULE,
 ): number {
+  if (schedule === 0) return 0;
   const set = new Set(completedDates);
   if (set.size === 0) return 0;
 
   const todayDate = fromDateKey(today);
-  let cursor: Date;
 
-  if (set.has(today)) {
-    cursor = todayDate;
-  } else {
-    const yesterday = addDays(todayDate, -1);
-    if (!set.has(toDateKey(yesterday))) return 0;
-    cursor = yesterday;
+  // Move cursor to the latest scheduled day ≤ today.
+  let cursor = latestScheduledDayAtOrBefore(todayDate, schedule);
+
+  // Grace: if cursor === today and not marked, try the previous scheduled day
+  if (toDateKey(cursor) === today && !set.has(today)) {
+    cursor = prevScheduledDay(cursor, schedule);
+    if (!set.has(toDateKey(cursor))) return 0;
   }
 
   let streak = 0;
   while (set.has(toDateKey(cursor))) {
     streak += 1;
-    cursor = addDays(cursor, -1);
+    cursor = prevScheduledDay(cursor, schedule);
   }
   return streak;
 }
 
-export function calculateLongestStreak(completedDates: DateKey[]): number {
-  const sorted = normalize(completedDates);
+/**
+ * Longest run of consecutive scheduled-days that were all marked.
+ * For schedule=127 it coincides with the classic calendar-day streak.
+ */
+export function calculateLongestStreak(
+  completedDates: DateKey[],
+  schedule: number = ALL_DAYS_SCHEDULE,
+): number {
+  if (schedule === 0) return 0;
+  const sorted = normalize(completedDates).filter((d) =>
+    isScheduledOn(schedule, fromDateKey(d)),
+  );
   if (sorted.length === 0) return 0;
 
   let longest = 1;
   let current = 1;
   for (let i = 1; i < sorted.length; i++) {
-    const gap = differenceInCalendarDays(
-      fromDateKey(sorted[i]),
-      fromDateKey(sorted[i - 1]),
-    );
-    if (gap === 1) {
-      current += 1;
-      if (current > longest) longest = current;
+    const prevDate = fromDateKey(sorted[i - 1]);
+    const currDate = fromDateKey(sorted[i]);
+    if (schedule === ALL_DAYS_SCHEDULE) {
+      const gap = differenceInCalendarDays(currDate, prevDate);
+      if (gap === 1) {
+        current += 1;
+        if (current > longest) longest = current;
+      } else {
+        current = 1;
+      }
     } else {
-      current = 1;
+      // Consecutive scheduled days?
+      let cursor = new Date(prevDate);
+      cursor.setDate(cursor.getDate() + 1);
+      while (!isScheduledOn(schedule, cursor)) {
+        cursor.setDate(cursor.getDate() + 1);
+      }
+      if (toDateKey(cursor) === sorted[i]) {
+        current += 1;
+        if (current > longest) longest = current;
+      } else {
+        current = 1;
+      }
     }
   }
   return longest;
@@ -60,7 +96,6 @@ export function calculateLongestStreak(completedDates: DateKey[]): number {
 // ---------------- Weekly-goal streak ----------------
 
 function isoWeekKey(date: Date): string {
-  // Use Monday-based ISO week bucket
   const d = new Date(date);
   const day = (d.getDay() + 6) % 7; // 0 = Monday
   d.setDate(d.getDate() - day);
@@ -70,8 +105,8 @@ function isoWeekKey(date: Date): string {
 
 /**
  * Number of consecutive weeks (ending this week) where the habit hit its
- * target_per_week goal. If the current week hasn't hit goal yet but last week
- * did, the streak keeps going — grace until end of week.
+ * target_per_week goal. Grace: if this week is still below goal but last
+ * week hit it, the streak holds.
  */
 export function calculateWeeklyGoalStreak(
   completedDates: DateKey[],
@@ -109,10 +144,6 @@ export function calculateWeeklyGoalStreak(
 
 export const MILESTONES = [3, 7, 14, 30, 60, 100, 180, 365, 730] as const;
 
-/**
- * Returns the milestone value if `streak` just matched one (vs. previous streak).
- * Otherwise null. Used to fire confetti + toast once per threshold crossing.
- */
 export function newlyReachedMilestone(
   prevStreak: number,
   streak: number,
@@ -122,4 +153,3 @@ export function newlyReachedMilestone(
   }
   return null;
 }
-

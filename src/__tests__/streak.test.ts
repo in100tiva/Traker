@@ -171,6 +171,97 @@ describe("calculateWeeklyGoalStreak", () => {
   });
 });
 
+describe("calculateCurrentStreak with schedule", () => {
+  // 2026-04-20 is Monday. Mon/Wed/Fri schedule = 0b0101010 = 42
+  const MON_WED_FRI = 0b0101010;
+
+  it("today not marked on a non-scheduled day does not break streak", () => {
+    // Monday marked, Wed marked. Today = Tuesday (not scheduled).
+    // Last scheduled day ≤ today = Monday → marked → streak 1
+    expect(
+      calculateCurrentStreak(
+        ["2026-04-20"], // Mon
+        "2026-04-21", // Tue
+        MON_WED_FRI,
+      ),
+    ).toBe(1);
+  });
+
+  it("counts only scheduled days consecutively", () => {
+    // Wed 15, Fri 17, Mon 20 all marked (all scheduled) → streak 3
+    expect(
+      calculateCurrentStreak(
+        ["2026-04-15", "2026-04-17", "2026-04-20"],
+        "2026-04-20", // Monday
+        MON_WED_FRI,
+      ),
+    ).toBe(3);
+  });
+
+  it("missing a scheduled day breaks the streak", () => {
+    // Wed 15 (scheduled) NOT marked, Fri 17, Mon 20 marked → streak is 2
+    expect(
+      calculateCurrentStreak(
+        ["2026-04-17", "2026-04-20"],
+        "2026-04-20",
+        MON_WED_FRI,
+      ),
+    ).toBe(2);
+  });
+
+  it("extra marks on non-scheduled days don't count toward streak", () => {
+    // Marks: Mon 20, Tue 21 (bonus), no Wed. Today=Wed → not yet done today,
+    // grace to last scheduled = Mon (marked) → streak 1
+    expect(
+      calculateCurrentStreak(
+        ["2026-04-20", "2026-04-21"],
+        "2026-04-22", // Wed
+        MON_WED_FRI,
+      ),
+    ).toBe(1);
+  });
+
+  it("full schedule behaves like daily streak", () => {
+    expect(
+      calculateCurrentStreak(
+        ["2026-04-18", "2026-04-19", "2026-04-20"],
+        "2026-04-20",
+        127,
+      ),
+    ).toBe(3);
+  });
+});
+
+describe("calculateLongestStreak with schedule", () => {
+  const MON_WED_FRI = 0b0101010;
+
+  it("only counts consecutive scheduled days", () => {
+    // Mon 6, Wed 8, Fri 10 → streak 3
+    // Then: Mon 13 (skip), Wed 15, Fri 17, Mon 20 → 3
+    // Longest = 3
+    expect(
+      calculateLongestStreak(
+        [
+          "2026-04-06",
+          "2026-04-08",
+          "2026-04-10",
+          "2026-04-15",
+          "2026-04-17",
+          "2026-04-20",
+        ],
+        MON_WED_FRI,
+      ),
+    ).toBe(3);
+  });
+
+  it("ignores completions on non-scheduled days", () => {
+    // Mon 20 marked + Tue 21 (bonus, not scheduled) → longest should be 1
+    expect(
+      calculateLongestStreak(["2026-04-20", "2026-04-21"], MON_WED_FRI),
+    ).toBe(1);
+  });
+});
+
 describe("newlyReachedMilestone", () => {
   it("returns milestone when crossing threshold", () => {
     expect(newlyReachedMilestone(6, 7)).toBe(7);

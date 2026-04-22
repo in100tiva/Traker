@@ -21,6 +21,15 @@ import {
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/store/useUIStore";
 import type { Habit } from "@/db/schema";
+import {
+  ALL_DAYS_SCHEDULE,
+  countScheduledDays,
+  isScheduledOnDow,
+  scheduleLabel,
+  toggleDowInSchedule,
+  WEEKDAY_LETTER_LABELS,
+  WEEKDAY_SHORT_LABELS,
+} from "@/lib/schedule";
 
 const COLORS = [
   "#22c55e",
@@ -58,6 +67,7 @@ export interface HabitFormInput {
   unit?: string | null;
   isNegative?: boolean;
   tag?: string | null;
+  schedule?: number;
 }
 
 interface Props {
@@ -68,6 +78,8 @@ interface Props {
   onCreated?: (id: string) => void;
   onCloseEdit?: () => void;
 }
+
+type GoalMode = "flexible" | "scheduled";
 
 export function HabitForm({
   onCreate,
@@ -91,6 +103,8 @@ export function HabitForm({
   const [unit, setUnit] = useState("");
   const [isNegative, setIsNegative] = useState(false);
   const [tag, setTag] = useState("");
+  const [goalMode, setGoalMode] = useState<GoalMode>("flexible");
+  const [schedule, setSchedule] = useState<number>(ALL_DAYS_SCHEDULE);
   const [submitting, setSubmitting] = useState(false);
   const [touched, setTouched] = useState(false);
 
@@ -105,6 +119,9 @@ export function HabitForm({
       setUnit(editing.unit ?? "");
       setIsNegative(editing.isNegative);
       setTag(editing.tag ?? "");
+      const sch = editing.schedule ?? ALL_DAYS_SCHEDULE;
+      setSchedule(sch);
+      setGoalMode(sch === ALL_DAYS_SCHEDULE ? "flexible" : "scheduled");
       setTab("basics");
     } else if (!isCreateOpen) {
       setName("");
@@ -116,12 +133,17 @@ export function HabitForm({
       setUnit("");
       setIsNegative(false);
       setTag("");
+      setSchedule(ALL_DAYS_SCHEDULE);
+      setGoalMode("flexible");
       setTouched(false);
       setTab("basics");
     }
   }, [editing, isCreateOpen]);
 
   const nameError = touched && name.trim().length === 0;
+  const scheduledCount = countScheduledDays(schedule);
+  const scheduleError =
+    goalMode === "scheduled" && scheduledCount === 0;
 
   function handleOpenChange(nextOpen: boolean) {
     if (nextOpen) return;
@@ -129,21 +151,40 @@ export function HabitForm({
     else closeCreate();
   }
 
+  function handleSetMode(mode: GoalMode) {
+    setGoalMode(mode);
+    if (mode === "flexible") {
+      setSchedule(ALL_DAYS_SCHEDULE);
+    } else {
+      // Preserve current schedule if not all-days; otherwise start with weekdays
+      if (schedule === ALL_DAYS_SCHEDULE) {
+        setSchedule(0b0111110); // weekdays default for new scheduled habits
+      }
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setTouched(true);
-    if (!name.trim()) return;
+    if (!name.trim() || scheduleError) return;
     setSubmitting(true);
+
+    const finalSchedule =
+      goalMode === "flexible" ? ALL_DAYS_SCHEDULE : schedule;
+    const finalTargetPerWeek =
+      goalMode === "scheduled" ? scheduledCount : targetPerWeek;
+
     const input: HabitFormInput = {
       name: name.trim(),
       description: description.trim() || null,
       emoji,
       color,
-      targetPerWeek,
+      targetPerWeek: finalTargetPerWeek,
       targetPerDay: targetPerDay === "" ? null : Number(targetPerDay),
       unit: unit.trim() || null,
       isNegative,
       tag: tag.trim() || null,
+      schedule: finalSchedule,
     };
 
     if (editing && onUpdate) {
@@ -164,6 +205,11 @@ export function HabitForm({
         .slice(0, 5),
     [existingTags, tag],
   );
+
+  const previewTargetPerWeek =
+    goalMode === "scheduled" ? scheduledCount : targetPerWeek;
+  const previewScheduleLabel =
+    goalMode === "scheduled" ? scheduleLabel(schedule) : null;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -203,7 +249,7 @@ export function HabitForm({
               {name.trim() || "Nome do hábito"}
             </div>
             <div className="truncate text-xs text-muted-foreground">
-              {targetPerWeek}×/semana
+              {previewScheduleLabel ?? `${previewTargetPerWeek}×/semana`}
               {targetPerDay !== "" &&
                 ` · ${targetPerDay} ${unit || "un"}/dia`}
               {tag && ` · #${tag}`}
@@ -234,10 +280,14 @@ export function HabitForm({
                   autoFocus
                   required
                   aria-invalid={nameError}
-                  className={cn(nameError && "border-destructive focus-visible:ring-destructive")}
+                  className={cn(
+                    nameError && "border-destructive focus-visible:ring-destructive",
+                  )}
                 />
                 {nameError && (
-                  <p className="text-xs text-destructive">O nome é obrigatório.</p>
+                  <p className="text-xs text-destructive">
+                    O nome é obrigatório.
+                  </p>
                 )}
               </div>
               <div className="space-y-1.5">
@@ -267,7 +317,35 @@ export function HabitForm({
             </TabsContent>
 
             <TabsContent value="goal" className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
+              {/* Mode selector: flexible vs scheduled */}
+              <div className="grid grid-cols-2 gap-2 rounded-lg border bg-muted/40 p-1">
+                <button
+                  type="button"
+                  onClick={() => handleSetMode("flexible")}
+                  className={cn(
+                    "rounded-md px-3 py-2 text-xs font-medium transition-colors",
+                    goalMode === "flexible"
+                      ? "bg-card text-foreground shadow-card"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  Qualquer dia
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSetMode("scheduled")}
+                  className={cn(
+                    "rounded-md px-3 py-2 text-xs font-medium transition-colors",
+                    goalMode === "scheduled"
+                      ? "bg-card text-foreground shadow-card"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  Dias específicos
+                </button>
+              </div>
+
+              {goalMode === "flexible" ? (
                 <div className="space-y-1.5">
                   <Label htmlFor="target">Dias por semana</Label>
                   <Input
@@ -283,9 +361,57 @@ export function HabitForm({
                     }}
                   />
                   <p className="text-[10px] text-muted-foreground">
-                    {targetPerWeek === 7 ? "Diário" : `${targetPerWeek}× / semana`}
+                    {targetPerWeek === 7
+                      ? "Diário — todo dia da semana"
+                      : `${targetPerWeek}×/semana — pode ser qualquer dia`}
                   </p>
                 </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label>Escolha os dias</Label>
+                  <div className="grid grid-cols-7 gap-1">
+                    {WEEKDAY_LETTER_LABELS.map((letter, dow) => {
+                      const on = isScheduledOnDow(schedule, dow);
+                      return (
+                        <button
+                          key={dow}
+                          type="button"
+                          onClick={() =>
+                            setSchedule((s) => toggleDowInSchedule(s, dow))
+                          }
+                          aria-label={WEEKDAY_SHORT_LABELS[dow]}
+                          aria-pressed={on}
+                          title={WEEKDAY_SHORT_LABELS[dow]}
+                          className={cn(
+                            "grid h-10 place-items-center rounded-md border text-sm font-semibold transition-all",
+                            on
+                              ? "border-primary bg-primary text-primary-foreground shadow-card"
+                              : "border-border bg-card text-muted-foreground hover:border-foreground/30 hover:text-foreground",
+                          )}
+                        >
+                          {letter}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p
+                    className={cn(
+                      "text-[10px]",
+                      scheduleError
+                        ? "text-destructive"
+                        : "text-muted-foreground",
+                    )}
+                  >
+                    {scheduleError
+                      ? "Selecione pelo menos um dia"
+                      : scheduledCount === 7
+                        ? "Igual a 'Qualquer dia' — todo dia da semana"
+                        : `${scheduledCount}× / semana · ${scheduleLabel(schedule)}`}
+                  </p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="tpd">Alvo diário</Label>
                   <Input
@@ -301,8 +427,6 @@ export function HabitForm({
                     placeholder="opcional"
                   />
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="unit">Unidade</Label>
                   <Input
@@ -312,30 +436,30 @@ export function HabitForm({
                     placeholder="páginas, km…"
                   />
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="tag">Tag</Label>
-                  <Input
-                    id="tag"
-                    value={tag}
-                    onChange={(e) => setTag(e.target.value)}
-                    placeholder="saúde"
-                    list="tag-suggestions"
-                  />
-                  {tagSuggestions.length > 0 && tag && (
-                    <div className="flex flex-wrap gap-1 pt-0.5">
-                      {tagSuggestions.map((t) => (
-                        <button
-                          key={t}
-                          type="button"
-                          onClick={() => setTag(t)}
-                          className="rounded bg-muted px-1.5 py-0.5 text-[10px] hover:bg-accent"
-                        >
-                          #{t}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="tag">Tag (opcional)</Label>
+                <Input
+                  id="tag"
+                  value={tag}
+                  onChange={(e) => setTag(e.target.value)}
+                  placeholder="saúde"
+                />
+                {tagSuggestions.length > 0 && tag && (
+                  <div className="flex flex-wrap gap-1 pt-0.5">
+                    {tagSuggestions.map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setTag(t)}
+                        className="rounded bg-muted px-1.5 py-0.5 text-[10px] hover:bg-accent"
+                      >
+                        #{t}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </TabsContent>
 
@@ -360,7 +484,9 @@ export function HabitForm({
                   </PopoverTrigger>
                   <PopoverContent className="w-72">
                     <div className="mb-2 flex items-center justify-between">
-                      <span className="text-xs font-medium">Escolha um emoji</span>
+                      <span className="text-xs font-medium">
+                        Escolha um emoji
+                      </span>
                       {emoji && (
                         <button
                           type="button"
@@ -398,16 +524,11 @@ export function HabitForm({
                       type="button"
                       aria-label={`Cor ${c}`}
                       onClick={() => setColor(c)}
-                      className={cn(
-                        "relative grid h-9 w-full place-items-center rounded-lg transition-transform hover:scale-105",
-                      )}
+                      className="relative grid h-9 w-full place-items-center rounded-lg transition-transform hover:scale-105"
                       style={{ backgroundColor: c }}
                     >
                       {color === c && (
-                        <Check
-                          className="h-4 w-4 text-white"
-                          strokeWidth={3}
-                        />
+                        <Check className="h-4 w-4 text-white" strokeWidth={3} />
                       )}
                     </button>
                   ))}
@@ -425,7 +546,10 @@ export function HabitForm({
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={submitting || !name.trim()}>
+            <Button
+              type="submit"
+              disabled={submitting || !name.trim() || scheduleError}
+            >
               {isEdit ? "Salvar" : "Criar"}
             </Button>
           </DialogFooter>
