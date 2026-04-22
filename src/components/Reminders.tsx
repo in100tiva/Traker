@@ -1,9 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { Bell, BellOff } from "lucide-react";
+import { Bell, BellOff, Check } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   loadReminder,
   notificationsSupported,
@@ -18,9 +22,12 @@ interface Props {
   pendingCount: number;
 }
 
+function pad(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
 export function Reminders({ pendingCount }: Props) {
   const [cfg, setCfg] = useState<ReminderConfig>(() => loadReminder());
-  const [open, setOpen] = useState(false);
   const [permission, setPermission] = useState<NotificationPermission>(
     notificationsSupported() ? Notification.permission : "denied",
   );
@@ -50,9 +57,7 @@ export function Reminders({ pendingCount }: Props) {
     const next = { ...cfg, enabled: true };
     setCfg(next);
     saveReminder(next);
-    toast.success(
-      `Lembrete ativado para ${String(next.hour).padStart(2, "0")}:${String(next.minute).padStart(2, "0")}`,
-    );
+    toast.success(`Lembrete ativado para ${pad(next.hour)}:${pad(next.minute)}`);
   }
 
   function handleDisable() {
@@ -66,64 +71,76 @@ export function Reminders({ pendingCount }: Props) {
     const v = Number(value);
     if (!Number.isFinite(v)) return;
     const bounded =
-      field === "hour" ? Math.max(0, Math.min(23, v)) : Math.max(0, Math.min(59, v));
+      field === "hour"
+        ? Math.max(0, Math.min(23, v))
+        : Math.max(0, Math.min(59, v));
     const next = { ...cfg, [field]: bounded } as ReminderConfig;
     setCfg(next);
     saveReminder(next);
   }
 
+  const isActive = cfg.enabled && permission === "granted";
+
   return (
-    <div className="relative">
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => setOpen((o) => !o)}
-        aria-label="Lembretes"
-      >
-        {cfg.enabled && permission === "granted" ? (
-          <Bell className="h-4 w-4 text-primary" />
-        ) : (
-          <BellOff className="h-4 w-4" />
-        )}
-      </Button>
-      {open && (
-        <div className="absolute right-0 top-10 z-50 w-72 rounded-md border bg-card p-4 shadow-lg">
-          <h3 className="mb-2 text-sm font-semibold">Lembrete diário</h3>
-          <p className="mb-3 text-xs text-muted-foreground">
-            Notifica somente se ainda houver hábitos pendentes no horário
-            escolhido. Requer a aba aberta.
-          </p>
-          <div className="mb-3 flex items-end gap-2">
-            <div>
-              <Label htmlFor="rh" className="text-xs">
-                Hora
-              </Label>
-              <Input
-                id="rh"
-                type="number"
-                min={0}
-                max={23}
-                value={cfg.hour}
-                onChange={(e) => handleTimeChange("hour", e.target.value)}
-                className="w-16"
-              />
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="ghost" size="icon" aria-label="Lembretes">
+          {isActive ? (
+            <Bell className="h-4 w-4 text-primary" />
+          ) : (
+            <BellOff className="h-4 w-4" />
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" sideOffset={8} className="w-80 p-0">
+        <div className="space-y-3 p-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-display text-sm font-semibold">
+                Lembrete diário
+              </h3>
+              {isActive && (
+                <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-primary">
+                  <Check className="h-2.5 w-2.5" />
+                  ativo
+                </span>
+              )}
             </div>
-            <div>
-              <Label htmlFor="rm" className="text-xs">
-                Minuto
-              </Label>
-              <Input
-                id="rm"
-                type="number"
-                min={0}
-                max={59}
-                value={cfg.minute}
-                onChange={(e) => handleTimeChange("minute", e.target.value)}
-                className="w-16"
-              />
+            <p className="mt-1 text-xs text-muted-foreground">
+              Notifica só se ainda houver hábitos pendentes no horário escolhido.
+              Requer a aba aberta.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 rounded-lg border bg-muted/40 p-3">
+            <TimeInput
+              label="Hora"
+              value={cfg.hour}
+              min={0}
+              max={23}
+              onChange={(v) => handleTimeChange("hour", String(v))}
+            />
+            <span className="mt-5 font-display text-xl font-semibold text-muted-foreground">
+              :
+            </span>
+            <TimeInput
+              label="Minuto"
+              value={cfg.minute}
+              min={0}
+              max={59}
+              onChange={(v) => handleTimeChange("minute", String(v))}
+            />
+            <div className="ml-auto text-right">
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                Disparo
+              </div>
+              <div className="font-display font-semibold tabular-nums">
+                {pad(cfg.hour)}:{pad(cfg.minute)}
+              </div>
             </div>
           </div>
-          {cfg.enabled && permission === "granted" ? (
+
+          {isActive ? (
             <Button
               variant="outline"
               size="sm"
@@ -131,7 +148,7 @@ export function Reminders({ pendingCount }: Props) {
               className="w-full"
             >
               <BellOff className="h-4 w-4" />
-              Desativar
+              Desativar lembrete
             </Button>
           ) : (
             <Button size="sm" onClick={handleEnable} className="w-full">
@@ -140,7 +157,33 @@ export function Reminders({ pendingCount }: Props) {
             </Button>
           )}
         </div>
-      )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+interface TimeInputProps {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  onChange: (value: number) => void;
+}
+
+function TimeInput({ label, value, min, max, onChange }: TimeInputProps) {
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+        {label}
+      </span>
+      <Input
+        type="number"
+        min={min}
+        max={max}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="h-9 w-14 text-center font-mono text-base tabular-nums"
+      />
     </div>
   );
 }

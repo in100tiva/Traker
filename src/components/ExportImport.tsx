@@ -1,9 +1,10 @@
-import { forwardRef, useImperativeHandle, useRef } from "react";
+import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { Download, Upload } from "lucide-react";
 import { toast } from "sonner";
 import type { DbBundle } from "@/db/client";
 import { Button } from "@/components/ui/button";
 import { exportAll, importAll, type ExportPayload } from "@/db/queries";
+import { ImportPreviewDialog } from "./ImportPreviewDialog";
 
 interface Props {
   bundle: DbBundle | null;
@@ -17,6 +18,10 @@ export interface ExportImportHandle {
 export const ExportImport = forwardRef<ExportImportHandle, Props>(
   function ExportImport({ bundle }, ref) {
     const fileInput = useRef<HTMLInputElement>(null);
+    const [previewPayload, setPreviewPayload] = useState<ExportPayload | null>(
+      null,
+    );
+    const [importing, setImporting] = useState(false);
 
     async function handleExport() {
       if (!bundle) return;
@@ -32,7 +37,16 @@ export const ExportImport = forwardRef<ExportImportHandle, Props>(
         a.download = `traker-backup-${stamp}.json`;
         a.click();
         URL.revokeObjectURL(url);
-        toast.success("Backup exportado");
+
+        const habitCount = payload.habits.length;
+        const completionCount = payload.completions.length;
+        const noteCount = payload.completions.filter(
+          (c) => c.note && c.note.length > 0,
+        ).length;
+
+        toast.success("Backup exportado", {
+          description: `${habitCount} ${habitCount === 1 ? "hábito" : "hábitos"} · ${completionCount} ${completionCount === 1 ? "marcação" : "marcações"}${noteCount > 0 ? ` · ${noteCount} ${noteCount === 1 ? "nota" : "notas"}` : ""}.`,
+        });
       } catch (err) {
         toast.error("Falha ao exportar", {
           description: (err as Error).message,
@@ -40,10 +54,10 @@ export const ExportImport = forwardRef<ExportImportHandle, Props>(
       }
     }
 
-    async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+    async function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
       const file = e.target.files?.[0];
       e.target.value = "";
-      if (!file || !bundle) return;
+      if (!file) return;
 
       const text = await file.text();
       let payload: ExportPayload;
@@ -54,18 +68,33 @@ export const ExportImport = forwardRef<ExportImportHandle, Props>(
         return;
       }
 
-      const proceed = window.confirm(
-        `Importar ${payload.habits?.length ?? 0} hábitos e ${payload.completions?.length ?? 0} marcações? Isso SUBSTITUIRÁ todos os dados atuais.`,
-      );
-      if (!proceed) return;
+      const version = (payload as { version?: number }).version;
+      if (version !== 1 && version !== 2) {
+        toast.error("Versão de backup não suportada", {
+          description: `Este app só importa versões 1 ou 2 (recebido: ${version ?? "desconhecida"}).`,
+        });
+        return;
+      }
 
+      setPreviewPayload(payload);
+    }
+
+    async function confirmImport() {
+      if (!bundle || !previewPayload) return;
+      setImporting(true);
       try {
-        await importAll(bundle.db, payload);
-        toast.success("Backup restaurado");
+        await importAll(bundle.db, previewPayload);
+        const habitCount = previewPayload.habits.length;
+        toast.success("Backup restaurado", {
+          description: `${habitCount} ${habitCount === 1 ? "hábito" : "hábitos"} importado${habitCount === 1 ? "" : "s"}.`,
+        });
+        setPreviewPayload(null);
       } catch (err) {
         toast.error("Falha ao importar", {
           description: (err as Error).message,
         });
+      } finally {
+        setImporting(false);
       }
     }
 
@@ -101,7 +130,14 @@ export const ExportImport = forwardRef<ExportImportHandle, Props>(
           type="file"
           accept="application/json"
           className="hidden"
-          onChange={handleImport}
+          onChange={handleFileSelected}
+        />
+        <ImportPreviewDialog
+          open={previewPayload !== null}
+          payload={previewPayload}
+          onCancel={() => setPreviewPayload(null)}
+          onConfirm={confirmImport}
+          confirming={importing}
         />
       </>
     );

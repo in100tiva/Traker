@@ -358,4 +358,129 @@ describe("export / import round trip (v2)", () => {
       }),
     ).rejects.toThrow(/Unsupported export version/);
   });
+
+  it("preserves every habit field across a round trip (active, paused, archived)", async () => {
+    const active = await createHabit(db, {
+      name: "Ativo",
+      emoji: "📚",
+      color: "#a855f7",
+      targetPerWeek: 5,
+      targetPerDay: 20,
+      unit: "páginas",
+      tag: "leitura",
+    });
+    const paused = await createHabit(db, {
+      name: "Pausado",
+      emoji: "🏃",
+      color: "#ef4444",
+      targetPerWeek: 3,
+    });
+    const archived = await createHabit(db, {
+      name: "Arquivado",
+      isNegative: true,
+    });
+
+    await pauseHabit(db, paused.id);
+    await archiveHabit(db, archived.id);
+
+    for (const d of ["2026-04-10", "2026-04-12", "2026-04-15"]) {
+      await toggleCompletion(db, active.id, d);
+    }
+    await incrementCount(db, active.id, "2026-04-15", 2);
+    await setNote(db, active.id, "2026-04-15", "Capítulo 3 excelente");
+    await toggleCompletion(db, paused.id, "2026-04-01");
+    await toggleCompletion(db, archived.id, "2026-04-02");
+
+    await setSetting(db, "app", {
+      theme: "dark",
+      retroactiveLimitDays: 30,
+      onboardingDone: true,
+      defaultView: "today",
+    });
+
+    const payload = await exportAll(db);
+    expect(payload.habits).toHaveLength(3);
+    expect(payload.completions.length).toBe(5);
+    expect(payload.settings.length).toBeGreaterThan(0);
+
+    // Fresh DB; restore
+    const pg = new PGlite();
+    await applyMigrations(pg);
+    const fresh = drizzle(pg);
+    await importAll(fresh, payload);
+
+    const all = await listHabits(fresh, {
+      includeArchived: true,
+      includePaused: true,
+    });
+    expect(all).toHaveLength(3);
+
+    const ativo = all.find((h) => h.name === "Ativo")!;
+    expect(ativo.emoji).toBe("📚");
+    expect(ativo.color).toBe("#a855f7");
+    expect(ativo.targetPerWeek).toBe(5);
+    expect(ativo.targetPerDay).toBe(20);
+    expect(ativo.unit).toBe("páginas");
+    expect(ativo.tag).toBe("leitura");
+    expect(ativo.pausedAt).toBeNull();
+    expect(ativo.archivedAt).toBeNull();
+
+    const pausedRow = all.find((h) => h.name === "Pausado")!;
+    expect(pausedRow.emoji).toBe("🏃");
+    expect(pausedRow.pausedAt).toBeInstanceOf(Date);
+    expect(pausedRow.archivedAt).toBeNull();
+
+    const archivedRow = all.find((h) => h.name === "Arquivado")!;
+    expect(archivedRow.isNegative).toBe(true);
+    expect(archivedRow.archivedAt).toBeInstanceOf(Date);
+
+    // Completions with counts and notes
+    const ativoRows = await getCompletionsInRange(
+      fresh,
+      ativo.id,
+      "2026-04-01",
+      "2026-04-30",
+    );
+    expect(ativoRows).toHaveLength(3);
+    const apr15 = ativoRows.find((r) => r.date === "2026-04-15")!;
+    expect(apr15.count).toBe(3);
+    expect(apr15.note).toBe("Capítulo 3 excelente");
+
+    // Settings
+    const appSetting = await getSetting<{ theme: string }>(fresh, "app");
+    expect(appSetting?.theme).toBe("dark");
+  });
+
+  it("imports a legacy v1 payload (no emoji, no settings)", async () => {
+    const legacy = {
+      version: 1 as const,
+      exportedAt: "2026-03-01T12:00:00.000Z",
+      habits: [
+        {
+          id: "00000000-0000-0000-0000-000000000001",
+          name: "Hábito antigo",
+          description: null,
+          color: "#22c55e",
+          targetPerWeek: 7,
+          archivedAt: null,
+          createdAt: "2026-02-01T00:00:00.000Z",
+        },
+      ],
+      completions: [
+        {
+          habitId: "00000000-0000-0000-0000-000000000001",
+          date: "2026-02-15",
+          count: 1,
+        },
+      ],
+    };
+
+    await importAll(db, legacy as unknown as Parameters<typeof importAll>[1]);
+
+    const habits = await listHabits(db, { includeArchived: true });
+    expect(habits).toHaveLength(1);
+    expect(habits[0].name).toBe("Hábito antigo");
+    expect(habits[0].emoji).toBeNull();
+    expect(habits[0].tag).toBeNull();
+  });
 });
