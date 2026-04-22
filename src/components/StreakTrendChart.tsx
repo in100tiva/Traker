@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { format, parseISO } from "date-fns";
+import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { fromDateKey } from "@/lib/date";
 import {
   Area,
   AreaChart,
@@ -32,7 +33,7 @@ export function StreakTrendChart({ bundle, habitId, color }: Props) {
       if (cancelled) return;
       setData(
         rows.map((r) => ({
-          label: format(parseISO(r.date), "dd/MM", { locale: ptBR }),
+          label: format(fromDateKey(r.date), "dd/MM", { locale: ptBR }),
           streak: r.streak,
         })),
       );

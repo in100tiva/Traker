@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { DbBundle } from "@/db/client";
 import {
@@ -20,6 +20,11 @@ interface WeekRow {
   count: string;
 }
 
+interface LiveHandle {
+  refresh?: () => Promise<void> | void;
+  unsubscribe: () => void;
+}
+
 export function useCompletions(
   bundle: DbBundle | null,
   habitId: string | null,
@@ -28,6 +33,11 @@ export function useCompletions(
   const [completions, setCompletions] = useState<CompletionRecord[]>([]);
   const [weekly, setWeekly] = useState<WeeklyCount[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // Handles so we can force a refresh after mutations, as a safety net on top
+  // of PGlite's auto-tracked live queries.
+  const completionsRef = useRef<LiveHandle | null>(null);
+  const weeklyRef = useRef<LiveHandle | null>(null);
 
   const { from, to } = useMemo(() => {
     const days = lastNDays(new Date(), windowDays);
@@ -41,8 +51,6 @@ export function useCompletions(
       return;
     }
     let cancelled = false;
-    let unsubCompletions: (() => void) | null = null;
-    let unsubWeekly: (() => void) | null = null;
 
     setLoading(true);
 
@@ -69,7 +77,7 @@ export function useCompletions(
           sub.unsubscribe();
           return;
         }
-        unsubCompletions = sub.unsubscribe;
+        completionsRef.current = sub as LiveHandle;
       })
       .catch((err) => {
         console.error("[completions] live query failed", err);
@@ -99,7 +107,7 @@ export function useCompletions(
           sub.unsubscribe();
           return;
         }
-        unsubWeekly = sub.unsubscribe;
+        weeklyRef.current = sub as LiveHandle;
       })
       .catch((err) => {
         console.error("[weekly] live query failed", err);
@@ -107,23 +115,39 @@ export function useCompletions(
 
     return () => {
       cancelled = true;
-      unsubCompletions?.();
-      unsubWeekly?.();
+      completionsRef.current?.unsubscribe();
+      weeklyRef.current?.unsubscribe();
+      completionsRef.current = null;
+      weeklyRef.current = null;
     };
   }, [bundle, habitId, from, to]);
+
+  const refreshAll = useCallback(async () => {
+    try {
+      await completionsRef.current?.refresh?.();
+    } catch {
+      /* ignore */
+    }
+    try {
+      await weeklyRef.current?.refresh?.();
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   const toggle = useCallback(
     async (date: Date) => {
       if (!bundle || !habitId) return;
       try {
         await toggleCompletion(bundle.db, habitId, toDateKey(date));
+        await refreshAll();
       } catch (err) {
         toast.error("Falha ao atualizar marcação", {
           description: (err as Error).message,
         });
       }
     },
-    [bundle, habitId],
+    [bundle, habitId, refreshAll],
   );
 
   const increment = useCallback(
@@ -131,13 +155,14 @@ export function useCompletions(
       if (!bundle || !habitId) return;
       try {
         await incrementCount(bundle.db, habitId, toDateKey(date), delta);
+        await refreshAll();
       } catch (err) {
         toast.error("Falha ao atualizar contador", {
           description: (err as Error).message,
         });
       }
     },
-    [bundle, habitId],
+    [bundle, habitId, refreshAll],
   );
 
   const updateNote = useCallback(
@@ -145,13 +170,14 @@ export function useCompletions(
       if (!bundle || !habitId) return;
       try {
         await setNote(bundle.db, habitId, toDateKey(date), note);
+        await refreshAll();
       } catch (err) {
         toast.error("Falha ao salvar nota", {
           description: (err as Error).message,
         });
       }
     },
-    [bundle, habitId],
+    [bundle, habitId, refreshAll],
   );
 
   return { completions, weekly, loading, toggle, increment, updateNote };
