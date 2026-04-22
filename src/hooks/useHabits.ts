@@ -24,6 +24,7 @@ interface HabitRow {
   unit: string | null;
   is_negative: boolean;
   tag: string | null;
+  schedule: number;
   sort_order: number;
   paused_at: string | null;
   archived_at: string | null;
@@ -42,6 +43,7 @@ function toHabit(r: HabitRow): Habit {
     unit: r.unit,
     isNegative: r.is_negative,
     tag: r.tag,
+    schedule: r.schedule,
     sortOrder: r.sort_order,
     pausedAt: r.paused_at ? new Date(r.paused_at) : null,
     archivedAt: r.archived_at ? new Date(r.archived_at) : null,

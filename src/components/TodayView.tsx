@@ -12,6 +12,11 @@ import { Greeting } from "./Greeting";
 import { cn } from "@/lib/utils";
 import { todayKey } from "@/lib/date";
 import { haptics } from "@/lib/haptics";
+import {
+  ALL_DAYS_SCHEDULE,
+  isScheduledOn,
+  scheduleLabel,
+} from "@/lib/schedule";
 
 interface StreakMap {
   [habitId: string]: number;
@@ -97,6 +102,7 @@ export function TodayView({
     };
   }, [bundle, habits, todayMap, today]);
 
+  const todayDate = useMemo(() => new Date(), []);
   const active = useMemo(
     () => habits.filter((h) => !h.archivedAt && !h.pausedAt),
     [habits],
@@ -105,14 +111,33 @@ export function TodayView({
     () => habits.filter((h) => !h.archivedAt && h.pausedAt),
     [habits],
   );
-  const doneCount = active.filter((h) => todayMap.has(h.id)).length;
-  const total = active.length;
+  // Scheduled for today vs off-day (but still active)
+  const todaysHabits = useMemo(
+    () =>
+      active.filter((h) =>
+        isScheduledOn(h.schedule ?? ALL_DAYS_SCHEDULE, todayDate),
+      ),
+    [active, todayDate],
+  );
+  const offDayHabits = useMemo(
+    () =>
+      active.filter(
+        (h) =>
+          !isScheduledOn(h.schedule ?? ALL_DAYS_SCHEDULE, todayDate) &&
+          (h.schedule ?? ALL_DAYS_SCHEDULE) !== ALL_DAYS_SCHEDULE,
+      ),
+    [active, todayDate],
+  );
+
+  // Progress percentage uses ONLY scheduled-for-today habits
+  const doneCount = todaysHabits.filter((h) => todayMap.has(h.id)).length;
+  const total = todaysHabits.length;
   const pct = total === 0 ? 0 : doneCount / total;
 
-  // Group active habits by tag
-  const groupedActive = useMemo(() => {
+  // Group today's habits by tag
+  const groupedToday = useMemo(() => {
     const groups = new Map<string, Habit[]>();
-    for (const h of active) {
+    for (const h of todaysHabits) {
       const key = h.tag ?? "_untagged";
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(h);
@@ -122,7 +147,7 @@ export function TodayView({
       if (b === "_untagged") return -1;
       return a.localeCompare(b);
     });
-  }, [active]);
+  }, [todaysHabits]);
 
   if (loading && habits.length === 0) {
     return (
@@ -170,11 +195,17 @@ export function TodayView({
         </CardContent>
       </Card>
 
-      {active.length === 0 && total === 0 ? (
+      {active.length === 0 ? (
         <EmptyIllustration onCreate={onOpenCreate} />
       ) : (
         <>
-          {groupedActive.map(([key, list]) => (
+          {todaysHabits.length === 0 && offDayHabits.length > 0 && (
+            <div className="rounded-xl border border-dashed bg-card/30 p-5 text-center text-sm text-muted-foreground">
+              Nenhum hábito programado para hoje. Aproveite o dia livre 🎉
+            </div>
+          )}
+
+          {groupedToday.map(([key, list]) => (
             <TagGroup
               key={key}
               title={key === "_untagged" ? null : key}
@@ -190,6 +221,49 @@ export function TodayView({
               onEdit={onEdit}
             />
           ))}
+
+          {offDayHabits.length > 0 && (
+            <div>
+              <div className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Outros dias da semana
+              </div>
+              <ul className="space-y-2">
+                {offDayHabits.map((h) => (
+                  <div
+                    key={h.id}
+                    className="flex items-center gap-3 rounded-xl border border-dashed bg-muted/20 p-3 opacity-75"
+                  >
+                    <div
+                      className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-lg"
+                      style={{
+                        backgroundColor: `${h.color}22`,
+                        border: `1px solid ${h.color}66`,
+                      }}
+                    >
+                      {h.emoji ?? (
+                        <span
+                          className="h-2 w-2 rounded-full"
+                          style={{ backgroundColor: h.color }}
+                        />
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onSelectHabit(h.id)}
+                      className="flex flex-1 flex-col items-start overflow-hidden text-left"
+                    >
+                      <span className="font-medium text-muted-foreground">
+                        {h.name}
+                      </span>
+                      <span className="text-xs text-muted-foreground/70">
+                        {scheduleLabel(h.schedule ?? ALL_DAYS_SCHEDULE)}
+                      </span>
+                    </button>
+                  </div>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {paused.length > 0 && (
             <div>

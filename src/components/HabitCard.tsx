@@ -39,6 +39,11 @@ import {
   calculateLongestStreak,
   calculateWeeklyGoalStreak,
 } from "@/lib/streak";
+import {
+  ALL_DAYS_SCHEDULE,
+  isScheduledOn,
+  scheduleLabel,
+} from "@/lib/schedule";
 import { checkAndCelebrateMilestone } from "@/lib/milestones";
 import { haptics } from "@/lib/haptics";
 import { todayKey, toDateKey, type DateKey } from "@/lib/date";
@@ -85,18 +90,20 @@ export function HabitCard({
   const doneToday = Boolean(todayEntry);
   const todayCount = todayEntry?.count ?? 0;
 
+  const habitSchedule = habit.schedule ?? ALL_DAYS_SCHEDULE;
   const { current, longest, weeklyGoalStreak } = useMemo(
     () => ({
-      current: calculateCurrentStreak(completedDates, today),
-      longest: calculateLongestStreak(completedDates),
+      current: calculateCurrentStreak(completedDates, today, habitSchedule),
+      longest: calculateLongestStreak(completedDates, habitSchedule),
       weeklyGoalStreak: calculateWeeklyGoalStreak(
         completedDates,
         habit.targetPerWeek,
         today,
       ),
     }),
-    [completedDates, today, habit.targetPerWeek],
+    [completedDates, today, habit.targetPerWeek, habitSchedule],
   );
+  const scheduledToday = isScheduledOn(habitSchedule, new Date());
 
   useEffect(() => {
     checkAndCelebrateMilestone(habit.id, habit.name, current);
@@ -131,6 +138,12 @@ export function HabitCard({
           <Pause className="h-4 w-4" />
           Pausado em {format(habit.pausedAt!, "dd/MM/yyyy", { locale: ptBR })} ·
           streak não é quebrada.
+        </div>
+      )}
+      {!isArchived && !isPaused && !scheduledToday && (
+        <div className="rounded-lg border border-dashed bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+          Hoje não é um dia programado ({scheduleLabel(habitSchedule)}). Marcar
+          mesmo assim conta como bônus e não afeta a sequência.
         </div>
       )}
 
@@ -178,7 +191,9 @@ export function HabitCard({
                 </CardDescription>
               )}
               <CardDescription className="mt-1 text-xs">
-                Meta: {habit.targetPerWeek}×/semana
+                {habitSchedule === ALL_DAYS_SCHEDULE
+                  ? `Meta: ${habit.targetPerWeek}×/semana`
+                  : `Meta: ${scheduleLabel(habitSchedule)}`}
                 {habit.targetPerDay ? (
                   <>
                     {" · "}
@@ -324,6 +339,7 @@ export function HabitCard({
             completedDates={completedDates}
             color={habit.color}
             target={habit.targetPerWeek}
+            schedule={habitSchedule}
           />
 
           {weeklyRemaining === 0 && habit.targetPerWeek < 7 && (

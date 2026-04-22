@@ -244,6 +244,28 @@ describe("getPendingToday", () => {
     expect(total).toBe(2);
     expect(pending).toBe(1);
   });
+
+  it("ignores habits whose schedule excludes today", async () => {
+    const today = todayKey();
+    const dow = new Date(today + "T00:00:00").getDay();
+    // Schedule that includes today
+    const scheduleIncludingToday = 1 << dow;
+    // Schedule that excludes today: everything except this dow
+    const scheduleExcludingToday = 127 & ~(1 << dow);
+
+    await createHabit(db, {
+      name: "Hoje",
+      schedule: scheduleIncludingToday,
+    });
+    await createHabit(db, {
+      name: "Outros dias",
+      schedule: scheduleExcludingToday,
+    });
+
+    const { pending, total } = await getPendingToday(db, today);
+    expect(total).toBe(1);
+    expect(pending).toBe(1);
+  });
 });
 
 describe("getWeekdayHistogram", () => {
@@ -449,6 +471,26 @@ describe("export / import round trip (v2)", () => {
     // Settings
     const appSetting = await getSetting<{ theme: string }>(fresh, "app");
     expect(appSetting?.theme).toBe("dark");
+  });
+
+  it("preserves schedule across round trip", async () => {
+    const MON_WED_FRI = 0b0101010;
+    const habit = await createHabit(db, {
+      name: "Academia",
+      emoji: "🏋️",
+      targetPerWeek: 3,
+      schedule: MON_WED_FRI,
+    });
+    const payload = await exportAll(db);
+
+    const pg2 = new PGlite();
+    await applyMigrations(pg2);
+    const fresh = drizzle(pg2);
+    await importAll(fresh, payload);
+
+    const rows = await listHabits(fresh, { includeArchived: true });
+    const restored = rows.find((h) => h.id === habit.id)!;
+    expect(restored.schedule).toBe(MON_WED_FRI);
   });
 
   it("imports a legacy v1 payload (no emoji, no settings)", async () => {
