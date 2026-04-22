@@ -1,5 +1,5 @@
-import { addDays, differenceInCalendarDays, parseISO } from "date-fns";
-import { toDateKey, type DateKey } from "./date";
+import { addDays, differenceInCalendarDays } from "date-fns";
+import { fromDateKey, toDateKey, type DateKey } from "./date";
 
 function normalize(dates: DateKey[]): DateKey[] {
   return Array.from(new Set(dates)).sort();
@@ -17,7 +17,7 @@ export function calculateCurrentStreak(
   const set = new Set(completedDates);
   if (set.size === 0) return 0;
 
-  const todayDate = parseISO(today);
+  const todayDate = fromDateKey(today);
   let cursor: Date;
 
   if (set.has(today)) {
@@ -44,8 +44,8 @@ export function calculateLongestStreak(completedDates: DateKey[]): number {
   let current = 1;
   for (let i = 1; i < sorted.length; i++) {
     const gap = differenceInCalendarDays(
-      parseISO(sorted[i]),
-      parseISO(sorted[i - 1]),
+      fromDateKey(sorted[i]),
+      fromDateKey(sorted[i - 1]),
     );
     if (gap === 1) {
       current += 1;
@@ -65,7 +65,7 @@ function isoWeekKey(date: Date): string {
   const day = (d.getDay() + 6) % 7; // 0 = Monday
   d.setDate(d.getDate() - day);
   d.setHours(0, 0, 0, 0);
-  return d.toISOString().slice(0, 10);
+  return toDateKey(d);
 }
 
 /**
@@ -81,11 +81,11 @@ export function calculateWeeklyGoalStreak(
   if (targetPerWeek <= 0) return 0;
   const counts = new Map<string, number>();
   for (const d of new Set(completedDates)) {
-    const wk = isoWeekKey(parseISO(d));
+    const wk = isoWeekKey(fromDateKey(d));
     counts.set(wk, (counts.get(wk) ?? 0) + 1);
   }
 
-  const todayDate = parseISO(today);
+  const todayDate = fromDateKey(today);
   const thisWk = isoWeekKey(todayDate);
   const thisHit = (counts.get(thisWk) ?? 0) >= targetPerWeek;
 
@@ -122,3 +122,4 @@ export function newlyReachedMilestone(
   }
   return null;
 }
+

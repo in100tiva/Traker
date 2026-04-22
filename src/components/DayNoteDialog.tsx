@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { format, parseISO } from "date-fns";
+import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { fromDateKey } from "@/lib/date";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -51,7 +52,7 @@ export function DayNoteDialog({
         <DialogHeader>
           <DialogTitle>
             {date &&
-              format(parseISO(date), "EEEE, d 'de' MMMM 'de' yyyy", {
+              format(fromDateKey(date), "EEEE, d 'de' MMMM 'de' yyyy", {
                 locale: ptBR,
               })}
           </DialogTitle>

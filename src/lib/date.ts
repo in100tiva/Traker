@@ -1,6 +1,5 @@
 import {
   format,
-  parseISO,
   differenceInCalendarDays,
   startOfDay,
   addDays,
@@ -13,8 +12,16 @@ export function toDateKey(date: Date): DateKey {
   return format(startOfDay(date), "yyyy-MM-dd");
 }
 
+/**
+ * Parse a "YYYY-MM-DD" key as a Date in the LOCAL timezone at midnight.
+ *
+ * Do NOT use date-fns' parseISO for date-only strings: the spec says
+ * date-only ISO strings are parsed as UTC, which causes the weekday to
+ * shift by one for clients west of UTC. This helper forces local time.
+ */
 export function fromDateKey(key: DateKey): Date {
-  return parseISO(key);
+  const [y, m, d] = key.split("-").map(Number);
+  return new Date(y, (m ?? 1) - 1, d ?? 1);
 }
 
 export function todayKey(now: Date = new Date()): DateKey {
@@ -22,7 +29,7 @@ export function todayKey(now: Date = new Date()): DateKey {
 }
 
 export function daysBetween(a: DateKey, b: DateKey): number {
-  return differenceInCalendarDays(parseISO(a), parseISO(b));
+  return differenceInCalendarDays(fromDateKey(a), fromDateKey(b));
 }
 
 /** Last N days inclusive of `end`, oldest first. */

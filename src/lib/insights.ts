@@ -1,10 +1,10 @@
-import { addDays, differenceInCalendarDays, parseISO } from "date-fns";
+import { addDays, differenceInCalendarDays } from "date-fns";
 import {
   calculateCurrentStreak,
   calculateLongestStreak,
   MILESTONES,
 } from "./streak";
-import { toDateKey, type DateKey } from "./date";
+import { fromDateKey, toDateKey, type DateKey } from "./date";
 import type { CompletionRecord, WeeklyCount } from "@/db/queries";
 
 const WEEKDAYS = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
@@ -33,7 +33,7 @@ export function generateInsights(input: InsightInput): Insight[] {
   const out: Insight[] = [];
 
   // 1. Últimos 30 dias
-  const thirtyStart = toDateKey(addDays(parseISO(today), -29));
+  const thirtyStart = toDateKey(addDays(fromDateKey(today), -29));
   const last30 = completedDates.filter((d) => d >= thirtyStart && d <= today);
   if (last30.length > 0) {
     out.push({
@@ -108,7 +108,7 @@ export function generateInsights(input: InsightInput): Insight[] {
   if (completedDates.length >= 7) {
     const counts = new Array(7).fill(0);
     for (const d of completedDates) {
-      counts[parseISO(d).getDay()] += 1;
+      counts[fromDateKey(d).getDay()] += 1;
     }
     const max = Math.max(...counts);
     const top = counts.indexOf(max);
@@ -128,7 +128,7 @@ export function generateInsights(input: InsightInput): Insight[] {
 
   // 6. Ainda não marcado hoje, mas ontem sim
   if (!completionSet.has(today)) {
-    const yesterday = toDateKey(addDays(parseISO(today), -1));
+    const yesterday = toDateKey(addDays(fromDateKey(today), -1));
     if (completionSet.has(yesterday) && current > 0) {
       out.push({
         id: "today-pending",
@@ -154,5 +154,5 @@ export function generateInsights(input: InsightInput): Insight[] {
 function daysSinceFirst(dates: string[], today: string): number {
   if (dates.length === 0) return 0;
   const first = dates.reduce((a, b) => (a < b ? a : b));
-  return differenceInCalendarDays(parseISO(today), parseISO(first)) + 1;
+  return differenceInCalendarDays(fromDateKey(today), fromDateKey(first)) + 1;
 }

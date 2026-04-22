@@ -1,7 +1,6 @@
 import { useMemo, useState, useEffect } from "react";
 import {
   format,
-  parseISO,
   endOfWeek,
   addDays,
   startOfMonth,
@@ -19,7 +18,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
-import { lastNDays, toDateKey, type DateKey } from "@/lib/date";
+import { fromDateKey, lastNDays, toDateKey, type DateKey } from "@/lib/date";
 import { cn } from "@/lib/utils";
 
 const WEEKS = 53;
@@ -172,13 +171,16 @@ export function Heatmap({
         </div>
 
         <div className="flex gap-2 overflow-x-auto pb-1">
-          <div className="flex flex-col justify-start pt-5 text-[10px] text-muted-foreground">
+          <div
+            className="grid text-[10px] text-muted-foreground"
+            style={{
+              gridTemplateRows: `repeat(7, ${CELL_SIZE}px)`,
+              rowGap: CELL_GAP,
+              marginTop: 16, // match month labels bar height
+            }}
+          >
             {WEEKDAY_SHORT.map((label, i) => (
-              <div
-                key={i}
-                className="flex items-center pr-1"
-                style={{ height: CELL_SIZE + CELL_GAP }}
-              >
+              <div key={i} className="flex items-center pr-1">
                 {label}
               </div>
             ))}
@@ -201,9 +203,10 @@ export function Heatmap({
               ))}
             </div>
             <div
-              className="grid grid-flow-col grid-rows-7"
+              className="grid grid-flow-col"
               style={{
                 gridAutoColumns: "min-content",
+                gridTemplateRows: `repeat(7, ${CELL_SIZE}px)`,
                 gap: CELL_GAP,
               }}
               data-testid="heatmap-grid"
@@ -280,7 +283,7 @@ export function Heatmap({
                     </TooltipTrigger>
                     <TooltipContent side="top" className="px-3 py-2">
                       <div className="text-xs font-medium capitalize">
-                        {format(parseISO(key), "EEEE, d 'de' MMM", {
+                        {format(fromDateKey(key), "EEEE, d 'de' MMM", {
                           locale: ptBR,
                         })}
                       </div>

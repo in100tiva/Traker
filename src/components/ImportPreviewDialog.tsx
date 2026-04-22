@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { fromDateKey } from "@/lib/date";
 import {
   AlertTriangle,
   Archive,
@@ -50,7 +51,7 @@ export function ImportPreviewDialog({
     let dateRange: string | null = null;
     if (completions.length > 0) {
       const dates = completions.map((c) => c.date).sort();
-      dateRange = `${format(parseISO(dates[0]), "dd MMM yyyy", { locale: ptBR })} → ${format(parseISO(dates[dates.length - 1]), "dd MMM yyyy", { locale: ptBR })}`;
+      dateRange = `${format(fromDateKey(dates[0]), "dd MMM yyyy", { locale: ptBR })} → ${format(fromDateKey(dates[dates.length - 1]), "dd MMM yyyy", { locale: ptBR })}`;
     }
 
     let exportedAt: string | null = null;

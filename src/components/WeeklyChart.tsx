@@ -1,5 +1,6 @@
-import { format, parseISO } from "date-fns";
+import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { fromDateKey } from "@/lib/date";
 import {
   Bar,
   BarChart,
@@ -22,7 +23,7 @@ export function WeeklyChart({ data, color, target = 0 }: Props) {
   const rows = data.map((d, i) => {
     const prev = i > 0 ? data[i - 1].count : 0;
     return {
-      label: format(parseISO(d.weekStart), "dd/MM", { locale: ptBR }),
+      label: format(fromDateKey(d.weekStart), "dd/MM", { locale: ptBR }),
       weekStart: d.weekStart,
       count: d.count,
       prev,
