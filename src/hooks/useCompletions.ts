@@ -20,9 +20,30 @@ interface WeekRow {
   count: string;
 }
 
-interface LiveHandle {
-  refresh?: () => Promise<void> | void;
-  unsubscribe: () => void;
+const COMPLETIONS_SQL = `SELECT date::text AS date, count, note FROM completions
+   WHERE habit_id = $1 AND date BETWEEN $2 AND $3
+   ORDER BY date ASC`;
+
+const WEEKLY_SQL = `SELECT to_char(date_trunc('week', date)::date, 'YYYY-MM-DD') AS week_start,
+          count(*)::text AS count
+   FROM completions
+   WHERE habit_id = $1
+   GROUP BY 1
+   ORDER BY 1 DESC
+   LIMIT 12`;
+
+function mapCompletions(rows: CompletionRow[]): CompletionRecord[] {
+  return rows.map((r) => ({
+    date: r.date,
+    count: r.count,
+    note: r.note,
+  }));
+}
+
+function mapWeekly(rows: WeekRow[]): WeeklyCount[] {
+  return rows
+    .map((r) => ({ weekStart: r.week_start, count: Number(r.count) }))
+    .reverse();
 }
 
 export function useCompletions(
@@ -34,10 +55,13 @@ export function useCompletions(
   const [weekly, setWeekly] = useState<WeeklyCount[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Handles so we can force a refresh after mutations, as a safety net on top
-  // of PGlite's auto-tracked live queries.
-  const completionsRef = useRef<LiveHandle | null>(null);
-  const weeklyRef = useRef<LiveHandle | null>(null);
+  // Keep refs to active params so the manual refresh uses the same args
+  // that the live subscription is watching.
+  const paramsRef = useRef<{
+    habitId: string | null;
+    from: string;
+    to: string;
+  }>({ habitId: null, from: "", to: "" });
 
   const { from, to } = useMemo(() => {
     const days = lastNDays(new Date(), windowDays);
@@ -45,39 +69,30 @@ export function useCompletions(
   }, [windowDays]);
 
   useEffect(() => {
+    paramsRef.current = { habitId, from, to };
     if (!bundle || !habitId) {
       setCompletions([]);
       setWeekly([]);
       return;
     }
     let cancelled = false;
+    let unsubCompletions: (() => void) | null = null;
+    let unsubWeekly: (() => void) | null = null;
 
     setLoading(true);
 
     bundle.pg.live
-      .query<CompletionRow>(
-        `SELECT date::text AS date, count, note FROM completions
-         WHERE habit_id = $1 AND date BETWEEN $2 AND $3
-         ORDER BY date ASC`,
-        [habitId, from, to],
-        (res) => {
-          if (cancelled) return;
-          setCompletions(
-            res.rows.map((r) => ({
-              date: r.date,
-              count: r.count,
-              note: r.note,
-            })),
-          );
-          setLoading(false);
-        },
-      )
+      .query<CompletionRow>(COMPLETIONS_SQL, [habitId, from, to], (res) => {
+        if (cancelled) return;
+        setCompletions(mapCompletions(res.rows));
+        setLoading(false);
+      })
       .then((sub) => {
         if (cancelled) {
           sub.unsubscribe();
           return;
         }
-        completionsRef.current = sub as LiveHandle;
+        unsubCompletions = sub.unsubscribe;
       })
       .catch((err) => {
         console.error("[completions] live query failed", err);
@@ -85,29 +100,16 @@ export function useCompletions(
       });
 
     bundle.pg.live
-      .query<WeekRow>(
-        `SELECT to_char(date_trunc('week', date)::date, 'YYYY-MM-DD') AS week_start,
-                count(*)::text AS count
-         FROM completions
-         WHERE habit_id = $1
-         GROUP BY 1
-         ORDER BY 1 DESC
-         LIMIT 12`,
-        [habitId],
-        (res) => {
-          if (cancelled) return;
-          const mapped = res.rows
-            .map((r) => ({ weekStart: r.week_start, count: Number(r.count) }))
-            .reverse();
-          setWeekly(mapped);
-        },
-      )
+      .query<WeekRow>(WEEKLY_SQL, [habitId], (res) => {
+        if (cancelled) return;
+        setWeekly(mapWeekly(res.rows));
+      })
       .then((sub) => {
         if (cancelled) {
           sub.unsubscribe();
           return;
         }
-        weeklyRef.current = sub as LiveHandle;
+        unsubWeekly = sub.unsubscribe;
       })
       .catch((err) => {
         console.error("[weekly] live query failed", err);
@@ -115,25 +117,37 @@ export function useCompletions(
 
     return () => {
       cancelled = true;
-      completionsRef.current?.unsubscribe();
-      weeklyRef.current?.unsubscribe();
-      completionsRef.current = null;
-      weeklyRef.current = null;
+      unsubCompletions?.();
+      unsubWeekly?.();
     };
   }, [bundle, habitId, from, to]);
 
+  /**
+   * Re-fetch completions + weekly and commit to state immediately.
+   * Used as a safety net on top of the PGlite live queries — in practice
+   * the live queries don't always propagate on PGlite 0.2.x when writes
+   * come from the Drizzle pglite driver, so we force a fresh read after
+   * every mutation.
+   */
   const refreshAll = useCallback(async () => {
+    if (!bundle) return;
+    const {
+      habitId: hid,
+      from: f,
+      to: t,
+    } = paramsRef.current;
+    if (!hid) return;
     try {
-      await completionsRef.current?.refresh?.();
-    } catch {
-      /* ignore */
+      const [completionsRes, weeklyRes] = await Promise.all([
+        bundle.pg.query<CompletionRow>(COMPLETIONS_SQL, [hid, f, t]),
+        bundle.pg.query<WeekRow>(WEEKLY_SQL, [hid]),
+      ]);
+      setCompletions(mapCompletions(completionsRes.rows));
+      setWeekly(mapWeekly(weeklyRes.rows));
+    } catch (err) {
+      console.error("[completions] manual refresh failed", err);
     }
-    try {
-      await weeklyRef.current?.refresh?.();
-    } catch {
-      /* ignore */
-    }
-  }, []);
+  }, [bundle]);
 
   const toggle = useCallback(
     async (date: Date) => {

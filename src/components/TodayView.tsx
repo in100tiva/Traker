@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Flame, Pause, Pencil, Plus, Minus } from "lucide-react";
 import type { DbBundle } from "@/db/client";
@@ -54,6 +54,21 @@ export function TodayView({
   );
   const [streaks, setStreaks] = useState<StreakMap>({});
 
+  const refreshTodayMap = useCallback(async () => {
+    if (!bundle) return;
+    const { rows } = await bundle.pg.query<{
+      habit_id: string;
+      count: number;
+      note: string | null;
+    }>(
+      `SELECT habit_id, count, note FROM completions WHERE date = $1`,
+      [today],
+    );
+    const map = new Map<string, CompletionToday>();
+    for (const r of rows) map.set(r.habit_id, { count: r.count, note: r.note });
+    setTodayMap(map);
+  }, [bundle, today]);
+
   useEffect(() => {
     if (!bundle) return;
     let cancelled = false;
@@ -81,6 +96,21 @@ export function TodayView({
   }, [bundle, today]);
 
   // Compute streaks per habit via a single SQL query (last completion + gap check is complex — we fetch recent dates per habit).
+  const refreshStreaks = useCallback(async () => {
+    if (!bundle || habits.length === 0) return;
+    const map: StreakMap = {};
+    for (const h of habits) {
+      const { rows } = await bundle.pg.query<{ date: string }>(
+        `SELECT date::text AS date FROM completions
+           WHERE habit_id = $1 AND date > $2
+           ORDER BY date DESC LIMIT 500`,
+        [h.id, addDaysISO(today, -400)],
+      );
+      map[h.id] = computeStreakFromDates(rows.map((r) => r.date), today);
+    }
+    setStreaks(map);
+  }, [bundle, habits, today]);
+
   useEffect(() => {
     if (!bundle || habits.length === 0) return;
     let cancelled = false;
@@ -215,8 +245,14 @@ export function TodayView({
               onToggle={async (id, d) => {
                 haptics.tap();
                 await onToggle(id, d);
+                await refreshTodayMap();
+                await refreshStreaks();
               }}
-              onIncrement={onIncrement}
+              onIncrement={async (id, delta) => {
+                await onIncrement(id, delta);
+                await refreshTodayMap();
+                await refreshStreaks();
+              }}
               onSelect={onSelectHabit}
               onEdit={onEdit}
             />
