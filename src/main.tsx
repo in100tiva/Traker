@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import ReactDOM from "react-dom/client";
 import { Toaster } from "sonner";
 import App from "./App";
@@ -24,23 +24,10 @@ if ("serviceWorker" in navigator) {
 }
 
 function ThemedToaster() {
-  const [dark, setDark] = useState(() =>
-    document.documentElement.classList.contains("dark"),
-  );
-  useEffect(() => {
-    const obs = new MutationObserver(() =>
-      setDark(document.documentElement.classList.contains("dark")),
-    );
-    obs.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["class"],
-    });
-    return () => obs.disconnect();
-  }, []);
   return (
     <Toaster
       position="bottom-right"
-      theme={dark ? "dark" : "light"}
+      theme="dark"
       richColors
       closeButton
       toastOptions={{

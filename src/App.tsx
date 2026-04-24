@@ -1,31 +1,26 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
-import { Command, Menu } from "lucide-react";
-import { HabitList } from "@/components/HabitList";
 import { HabitForm, type HabitFormInput } from "@/components/HabitForm";
-import { HabitCard } from "@/components/HabitCard";
 import { ExportImport } from "@/components/ExportImport";
 import { Reminders } from "@/components/Reminders";
 import { TodayView } from "@/components/TodayView";
 import { Onboarding } from "@/components/Onboarding";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { HabitDetail } from "@/components/HabitDetail";
 import {
   ShortcutsHelp,
   ShortcutsHelpButton,
 } from "@/components/ShortcutsHelp";
 import { DayNoteDialog } from "@/components/DayNoteDialog";
 import { CommandPalette } from "@/components/CommandPalette";
-import { LogoMark } from "@/components/Logo";
+import { Sidebar } from "@/components/Sidebar";
+import { Topbar } from "@/components/Topbar";
 import { useDb } from "@/hooks/useDb";
 import { useHabits } from "@/hooks/useHabits";
 import { useCompletions } from "@/hooks/useCompletions";
-import { usePendingToday } from "@/hooks/usePendingToday";
 import { useSettings } from "@/hooks/useSettings";
 import { useHotkeys } from "@/hooks/useHotkeys";
 import { useUIStore } from "@/store/useUIStore";
-import { Button } from "@/components/ui/button";
 import { toDateKey } from "@/lib/date";
-import { incrementCount, toggleCompletion } from "@/db/queries";
+import { toggleCompletion } from "@/db/queries";
 import { haptics } from "@/lib/haptics";
 import { cn } from "@/lib/utils";
 import type { DateKey } from "@/lib/date";
@@ -36,7 +31,6 @@ export default function App() {
     useSettings(bundle);
 
   const {
-    activeView,
     selectedHabitId,
     setSelectedHabit,
     openCreate,
@@ -68,20 +62,21 @@ export default function App() {
     reorder,
   } = useHabits(bundle, { includeArchived: showArchived, includePaused: true });
 
-  const pendingToday = usePendingToday(bundle);
-
   const selected = habits.find((h) => h.id === selectedHabitId) ?? null;
 
+  // Auto-select first habit when none is selected
   useEffect(() => {
-    if (selectedHabitId && !habits.some((h) => h.id === selectedHabitId)) {
-      setSelectedHabit(null);
-      setView("today");
+    if (!selectedHabitId && habits.length > 0 && !showArchived) {
+      setSelectedHabit(habits[0].id);
     }
-  }, [habits, selectedHabitId, setSelectedHabit, setView]);
+    if (selectedHabitId && !habits.some((h) => h.id === selectedHabitId)) {
+      setSelectedHabit(habits[0]?.id ?? null);
+    }
+  }, [habits, selectedHabitId, setSelectedHabit, showArchived]);
 
   const { completions, weekly, toggle, increment, updateNote } = useCompletions(
     bundle,
-    activeView === "habit" ? selected?.id ?? null : null,
+    selected?.id ?? null,
   );
 
   const [noteDate, setNoteDate] = useState<DateKey | null>(null);
@@ -90,7 +85,7 @@ export default function App() {
     [noteDate, completions],
   );
 
-  const handleToggleFromTodayView = useCallback(
+  const handleToggleAny = useCallback(
     async (habitId: string, date: Date) => {
       if (!bundle) return;
       await toggleCompletion(bundle.db, habitId, toDateKey(date));
@@ -98,14 +93,42 @@ export default function App() {
     [bundle],
   );
 
-  const handleIncrementFromTodayView = useCallback(
-    async (habitId: string, delta: number) => {
-      if (!bundle) return;
-      haptics.tap();
-      await incrementCount(bundle.db, habitId, toDateKey(new Date()), delta);
-    },
-    [bundle],
-  );
+  // For the hero "current/record streak" calc: we want streak info for each
+  // habit. TodayView fetches this itself — we just hand it the bundle + habits.
+  const [heroStreak, setHeroStreak] = useState({ current: 0, record: 0 });
+  useEffect(() => {
+    if (!bundle || habits.length === 0) {
+      setHeroStreak({ current: 0, record: 0 });
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      let maxCurrent = 0;
+      let maxRecord = 0;
+      for (const h of habits) {
+        const { rows } = await bundle.pg.query<{ date: string }>(
+          `SELECT date::text AS date FROM completions
+             WHERE habit_id = $1 ORDER BY date ASC LIMIT 2000`,
+          [h.id],
+        );
+        const dates = rows.map((r) => r.date);
+        const { calculateCurrentStreak, calculateLongestStreak } = await import(
+          "@/lib/streak"
+        );
+        const { ALL_DAYS_SCHEDULE } = await import("@/lib/schedule");
+        const today = toDateKey(new Date());
+        const sch = h.schedule ?? ALL_DAYS_SCHEDULE;
+        const cur = calculateCurrentStreak(dates, today, sch);
+        const rec = calculateLongestStreak(dates, sch);
+        if (cur > maxCurrent) maxCurrent = cur;
+        if (rec > maxRecord) maxRecord = rec;
+      }
+      if (!cancelled) setHeroStreak({ current: maxCurrent, record: maxRecord });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [bundle, habits]);
 
   const handleCreate = useCallback(
     async (input: HabitFormInput) => create(input),
@@ -145,7 +168,6 @@ export default function App() {
     useMemo(
       () => [
         { key: "n", description: "Novo", handler: () => openCreate() },
-        { key: "t", description: "Hoje", handler: () => setView("today") },
         {
           key: "?",
           shift: true,
@@ -156,7 +178,7 @@ export default function App() {
           key: " ",
           description: "Marcar hoje",
           handler: () => {
-            if (activeView === "habit" && selected) {
+            if (selected) {
               haptics.tap();
               toggle(new Date());
             }
@@ -172,12 +194,11 @@ export default function App() {
               : -1;
             const next = activeHabits[(idx + 1) % activeHabits.length];
             setSelectedHabit(next.id);
-            setView("habit");
           },
         },
         {
           key: "ArrowDown",
-          description: "Próximo hábito",
+          description: "Próximo",
           handler: () => {
             if (activeHabits.length === 0) return;
             const idx = selectedHabitId
@@ -185,44 +206,43 @@ export default function App() {
               : -1;
             const next = activeHabits[(idx + 1) % activeHabits.length];
             setSelectedHabit(next.id);
-            setView("habit");
           },
         },
         {
           key: "k",
-          description: "Hábito anterior",
+          description: "Anterior",
           handler: () => {
             if (activeHabits.length === 0) return;
             const idx = selectedHabitId
               ? activeHabits.findIndex((h) => h.id === selectedHabitId)
               : 0;
             const prev =
-              activeHabits[(idx - 1 + activeHabits.length) % activeHabits.length];
+              activeHabits[
+                (idx - 1 + activeHabits.length) % activeHabits.length
+              ];
             setSelectedHabit(prev.id);
-            setView("habit");
           },
         },
         {
           key: "ArrowUp",
-          description: "Hábito anterior",
+          description: "Anterior",
           handler: () => {
             if (activeHabits.length === 0) return;
             const idx = selectedHabitId
               ? activeHabits.findIndex((h) => h.id === selectedHabitId)
               : 0;
             const prev =
-              activeHabits[(idx - 1 + activeHabits.length) % activeHabits.length];
+              activeHabits[
+                (idx - 1 + activeHabits.length) % activeHabits.length
+              ];
             setSelectedHabit(prev.id);
-            setView("habit");
           },
         },
       ],
       [
         openCreate,
-        setView,
         setShortcutsOpen,
         shortcutsOpen,
-        activeView,
         selected,
         toggle,
         activeHabits,
@@ -235,16 +255,13 @@ export default function App() {
   const showOnboarding =
     settingsLoaded && !settings.onboardingDone && habits.length === 0;
 
-  // Trigger export/import via ref to ExportImport actions
   const exportImportRef = useRef<{
     triggerExport: () => void;
     triggerImport: () => void;
   } | null>(null);
 
-  const viewKey = `${activeView}-${selected?.id ?? "none"}-${showArchived ? "arch" : "active"}`;
-
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background">
+    <div className="flex h-screen w-full overflow-hidden bg-bg text-ink">
       {/* Sidebar */}
       <div
         className={cn(
@@ -253,161 +270,155 @@ export default function App() {
           "transition-transform md:translate-x-0",
         )}
       >
-        <HabitList habits={habits} loading={loading} onReorder={reorder} />
+        <Sidebar
+          habits={habits}
+          loading={loading}
+          onReorder={reorder}
+          currentStreak={heroStreak.current}
+          recordStreak={heroStreak.record}
+        />
       </div>
       {sidebarOpen && (
         <button
           type="button"
-          className="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm md:hidden"
+          className="fixed inset-0 z-30 bg-black/60 backdrop-blur-sm md:hidden"
           aria-label="Fechar menu"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
       <main className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex items-center justify-between gap-2 border-b bg-surface-1 px-4 py-3 md:px-8">
-          <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="md:hidden"
-              onClick={toggleSidebar}
-              aria-label="Abrir menu"
-            >
-              <Menu className="h-5 w-5" />
-            </Button>
-            <LogoMark size="sm" className="md:hidden" />
-            <div className="hidden md:block">
-              {/* header greeting lives on the Today view hero now; keep header clean on desktop */}
-              <div className="text-xs text-muted-foreground">
-                {pendingToday.total === 0
-                  ? "Nenhum hábito ativo"
-                  : pendingToday.pending === 0
-                    ? "Tudo feito hoje 🎉"
-                    : `${pendingToday.pending} pendente${pendingToday.pending === 1 ? "" : "s"}`}
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="outline"
-              size="sm"
-              className="hidden gap-2 md:inline-flex"
-              onClick={() => setCommandOpen(true)}
-              aria-label="Abrir paleta de comandos"
-            >
-              <Command className="h-3.5 w-3.5" />
-              <span className="text-muted-foreground">Buscar</span>
-              <kbd className="ml-2 hidden rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground lg:inline">
-                ⌘K
-              </kbd>
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="md:hidden"
-              onClick={() => setCommandOpen(true)}
-              aria-label="Buscar"
-            >
-              <Command className="h-4 w-4" />
-            </Button>
-            <Reminders pendingCount={pendingToday.pending} />
-            <ExportImport bundle={bundle} ref={exportImportRef} />
-            <ThemeToggle
-              theme={settings.theme}
-              onChange={(t) => updateSettings({ theme: t })}
-            />
-            <ShortcutsHelpButton onOpen={() => setShortcutsOpen(true)} />
-          </div>
-        </header>
+        <Topbar
+          onOpenCommand={() => setCommandOpen(true)}
+          onOpenCreate={openCreate}
+          onToggleSidebar={toggleSidebar}
+          breadcrumbParent="Painel"
+        />
 
         <section className="flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-5xl p-4 md:p-8">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={viewKey}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ duration: 0.2, ease: "easeOut" }}
-              >
-                {showArchived && selected ? (
-                  <HabitCard
-                    bundle={bundle}
-                    habit={selected}
-                    completions={completions}
-                    weekly={weekly}
-                    retroactiveLimitDays={settings.retroactiveLimitDays}
-                    onToggleToday={() => toggle(new Date())}
-                    onIncrementToday={(d) => increment(new Date(), d)}
-                    onCellClick={handleCellClick}
-                    onArchive={() => archive(selected.id, selected.name)}
-                    onUnarchive={() => unarchive(selected.id)}
-                    onPause={() => pause(selected.id)}
-                    onResume={() => resume(selected.id)}
-                    onEdit={() => setEditing(selected)}
-                    onDelete={async () => {
-                      if (
-                        window.confirm(
-                          `Excluir permanentemente "${selected.name}" e todas as marcações?`,
-                        )
-                      ) {
-                        await hardDelete(selected.id);
-                        setSelectedHabit(null);
-                        setView("today");
-                      }
-                    }}
-                  />
-                ) : !showArchived && activeView === "today" ? (
-                  <TodayView
-                    bundle={bundle}
-                    habits={habits}
-                    loading={loading}
-                    onToggle={handleToggleFromTodayView}
-                    onIncrement={handleIncrementFromTodayView}
-                    onSelectHabit={(id) => {
-                      setSelectedHabit(id);
-                      setView("habit");
-                    }}
-                    onEdit={(h) => setEditing(h)}
-                    onOpenCreate={openCreate}
-                  />
-                ) : !showArchived && activeView === "habit" && selected ? (
-                  <HabitCard
-                    bundle={bundle}
-                    habit={selected}
-                    completions={completions}
-                    weekly={weekly}
-                    retroactiveLimitDays={settings.retroactiveLimitDays}
-                    onToggleToday={() => toggle(new Date())}
-                    onIncrementToday={(d) => increment(new Date(), d)}
-                    onCellClick={handleCellClick}
-                    onArchive={() => {
-                      archive(selected.id, selected.name);
-                      setView("today");
-                    }}
-                    onUnarchive={() => unarchive(selected.id)}
-                    onPause={() => pause(selected.id)}
-                    onResume={() => resume(selected.id)}
-                    onEdit={() => setEditing(selected)}
-                    onDelete={() => {
-                      remove(selected.id, selected.name);
-                      setView("today");
-                    }}
-                  />
-                ) : (
-                  <div className="flex h-[60vh] items-center justify-center">
-                    <p className="text-muted-foreground">
-                      {showArchived
-                        ? "Selecione um hábito arquivado."
-                        : "Selecione um hábito."}
-                    </p>
+          <div className="mx-auto w-full max-w-[1320px] px-4 py-5 md:px-7 md:py-6">
+            {showArchived ? (
+              <div className="flex flex-col gap-6 lg:flex-row">
+                <div className="lg:w-1/2">
+                  <div className="mb-3 flex items-center justify-between">
+                    <div>
+                      <div className="font-display text-[17px] font-semibold text-ink tracking-tighter">
+                        Hábitos arquivados
+                      </div>
+                      <div className="mt-0.5 font-mono text-[10.5px] text-ink-dim">
+                        Dados preservados para restauração
+                      </div>
+                    </div>
                   </div>
-                )}
-              </motion.div>
-            </AnimatePresence>
+                  {habits.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-border bg-surface/30 p-8 text-center font-mono text-[11px] text-ink-mute">
+                      Nenhum arquivado.
+                    </div>
+                  ) : (
+                    <ul className="flex flex-col gap-2">
+                      {habits.map((h) => (
+                        <li key={h.id}>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedHabit(h.id)}
+                            className={cn(
+                              "flex w-full items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors",
+                              selected?.id === h.id
+                                ? "border-border-strong bg-surface-2"
+                                : "border-border bg-surface hover:bg-surface-2",
+                            )}
+                          >
+                            <span className="text-base">{h.emoji ?? "•"}</span>
+                            <span className="flex-1 text-[13px] text-ink">
+                              {h.name}
+                            </span>
+                            <span className="font-mono text-[10px] text-ink-mute">
+                              {h.tag ?? "—"}
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <div className="lg:flex-1">
+                  {selected ? (
+                    <HabitDetail
+                      bundle={bundle}
+                      habit={selected}
+                      completions={completions}
+                      weekly={weekly}
+                      retroactiveLimitDays={settings.retroactiveLimitDays}
+                      onToggleToday={() => toggle(new Date())}
+                      onIncrementToday={(d) => increment(new Date(), d)}
+                      onCellClick={handleCellClick}
+                      onArchive={() => archive(selected.id, selected.name)}
+                      onUnarchive={() => unarchive(selected.id)}
+                      onPause={() => pause(selected.id)}
+                      onResume={() => resume(selected.id)}
+                      onEdit={() => setEditing(selected)}
+                      onDelete={async () => {
+                        if (
+                          window.confirm(
+                            `Excluir permanentemente "${selected.name}"?`,
+                          )
+                        ) {
+                          await hardDelete(selected.id);
+                          setSelectedHabit(null);
+                          setView("today");
+                        }
+                      }}
+                    />
+                  ) : (
+                    <div className="flex h-60 items-center justify-center rounded-xl border border-dashed border-border bg-surface/30 font-mono text-[11px] text-ink-mute">
+                      Selecione um hábito arquivado
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <TodayView
+                bundle={bundle}
+                habits={habits}
+                selected={selected}
+                detailCompletions={completions}
+                detailWeekly={weekly}
+                retroactiveLimitDays={settings.retroactiveLimitDays}
+                onSelectHabit={(id) => setSelectedHabit(id)}
+                onToggleAny={handleToggleAny}
+                onToggleDetailToday={() => toggle(new Date())}
+                onIncrementDetailToday={(d) => increment(new Date(), d)}
+                onEditDetail={() => selected && setEditing(selected)}
+                onArchiveDetail={() =>
+                  selected && archive(selected.id, selected.name)
+                }
+                onUnarchiveDetail={() => selected && unarchive(selected.id)}
+                onPauseDetail={() => selected && pause(selected.id)}
+                onResumeDetail={() => selected && resume(selected.id)}
+                onDeleteDetail={() =>
+                  selected && remove(selected.id, selected.name)
+                }
+                onCellClickDetail={handleCellClick}
+                onOpenCreate={openCreate}
+              />
+            )}
+          </div>
+
+          {/* Footer actions — floating on mobile */}
+          <div className="fixed bottom-4 right-4 z-20 flex items-center gap-1 rounded-pill border border-border bg-surface/90 p-1.5 shadow-elevated backdrop-blur md:hidden">
+            <Reminders pendingCount={0} />
+            <ShortcutsHelpButton onOpen={() => setShortcutsOpen(true)} />
           </div>
         </section>
+
+        {/* Desktop-only secondary actions in the topbar area */}
+        <div className="pointer-events-none fixed right-7 top-[14px] z-10 hidden items-center gap-1 md:flex">
+          <div className="pointer-events-auto flex items-center gap-1">
+            <Reminders pendingCount={0} />
+            <ExportImport bundle={bundle} ref={exportImportRef} />
+            <ShortcutsHelpButton onOpen={() => setShortcutsOpen(true)} />
+          </div>
+        </div>
       </main>
 
       <HabitForm
@@ -415,10 +426,7 @@ export default function App() {
         onUpdate={handleUpdate}
         editing={editingHabit}
         existingTags={existingTags}
-        onCreated={(id) => {
-          setSelectedHabit(id);
-          setView("habit");
-        }}
+        onCreated={(id) => setSelectedHabit(id)}
         onCloseEdit={() => setEditing(null)}
       />
 
@@ -441,18 +449,15 @@ export default function App() {
         open={commandOpen}
         onOpenChange={setCommandOpen}
         habits={habits}
-        theme={settings.theme}
+        theme="dark"
         showArchived={showArchived}
         onOpenCreate={openCreate}
         onOpenShortcuts={() => setShortcutsOpen(true)}
-        onToggleTheme={() =>
-          updateSettings({ theme: settings.theme === "dark" ? "light" : "dark" })
-        }
-        onToggleArchivedView={toggleShowArchived}
-        onSelectHabit={(id) => {
-          setSelectedHabit(id);
-          setView("habit");
+        onToggleTheme={() => {
+          /* dark-only while we ship the Streaks design */
         }}
+        onToggleArchivedView={toggleShowArchived}
+        onSelectHabit={(id) => setSelectedHabit(id)}
         onArchive={archive}
         onUnarchive={unarchive}
         onPause={pause}
