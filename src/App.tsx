@@ -293,13 +293,24 @@ export default function App() {
           onOpenCreate={openCreate}
           onToggleSidebar={toggleSidebar}
           breadcrumbParent="Painel"
+          actions={
+            <>
+              <div className="hidden sm:flex sm:items-center sm:gap-1">
+                <Reminders pendingCount={0} />
+              </div>
+              <ExportImport bundle={bundle} ref={exportImportRef} />
+              <div className="hidden md:flex md:items-center md:gap-1">
+                <ShortcutsHelpButton onOpen={() => setShortcutsOpen(true)} />
+              </div>
+            </>
+          }
         />
 
         <section className="flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-[1320px] px-4 py-5 md:px-7 md:py-6">
+          <div className="mx-auto w-full max-w-[1320px] px-4 py-5 md:px-6 md:py-6 lg:px-7">
             {showArchived ? (
-              <div className="flex flex-col gap-6 lg:flex-row">
-                <div className="lg:w-1/2">
+              <div className="flex flex-col gap-6 xl:flex-row">
+                <div className="xl:w-[360px] xl:shrink-0">
                   <div className="mb-3 flex items-center justify-between">
                     <div>
                       <div className="font-display text-[17px] font-semibold text-ink tracking-tighter">
@@ -329,10 +340,10 @@ export default function App() {
                             )}
                           >
                             <span className="text-base">{h.emoji ?? "•"}</span>
-                            <span className="flex-1 text-[13px] text-ink">
+                            <span className="flex-1 truncate text-[13px] text-ink">
                               {h.name}
                             </span>
-                            <span className="font-mono text-[10px] text-ink-mute">
+                            <span className="shrink-0 font-mono text-[10px] text-ink-mute">
                               {h.tag ?? "—"}
                             </span>
                           </button>
@@ -341,7 +352,7 @@ export default function App() {
                     </ul>
                   )}
                 </div>
-                <div className="lg:flex-1">
+                <div className="min-w-0 flex-1">
                   {selected ? (
                     <HabitDetail
                       bundle={bundle}
@@ -403,22 +414,7 @@ export default function App() {
               />
             )}
           </div>
-
-          {/* Footer actions — floating on mobile */}
-          <div className="fixed bottom-4 right-4 z-20 flex items-center gap-1 rounded-pill border border-border bg-surface/90 p-1.5 shadow-elevated backdrop-blur md:hidden">
-            <Reminders pendingCount={0} />
-            <ShortcutsHelpButton onOpen={() => setShortcutsOpen(true)} />
-          </div>
         </section>
-
-        {/* Desktop-only secondary actions in the topbar area */}
-        <div className="pointer-events-none fixed right-7 top-[14px] z-10 hidden items-center gap-1 md:flex">
-          <div className="pointer-events-auto flex items-center gap-1">
-            <Reminders pendingCount={0} />
-            <ExportImport bundle={bundle} ref={exportImportRef} />
-            <ShortcutsHelpButton onOpen={() => setShortcutsOpen(true)} />
-          </div>
-        </div>
       </main>
 
       <HabitForm

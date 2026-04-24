@@ -82,9 +82,9 @@ export function Sidebar({
   ];
 
   return (
-    <aside className="flex h-full w-60 shrink-0 flex-col border-r border-border bg-surface-1">
+    <aside className="flex h-full w-[232px] shrink-0 flex-col border-r border-border bg-surface-1 lg:w-60">
       {/* Brand */}
-      <div className="flex items-center justify-between border-b border-border px-4 pt-6 pb-5">
+      <div className="flex items-center justify-between border-b border-border px-4 pt-5 pb-4 lg:pt-6 lg:pb-5">
         <LogoWordmark size="sm" />
       </div>
 

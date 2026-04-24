@@ -130,33 +130,35 @@ export function HabitDetail({
         </div>
       )}
 
-      {/* Header */}
-      <div className="flex flex-col gap-4 md:flex-row md:items-start">
-        <IconTile
-          emoji={habit.emoji}
-          iconName={habit.emoji ? undefined : "check"}
-          size={56}
-          accent
-        />
-        <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="font-mono text-[10px] font-semibold uppercase tracking-wider text-accent">
-              {categoryLabel}
+      {/* Header — ícone + título empilham; ações em linha separada */}
+      <div className="flex flex-col gap-4">
+        <div className="flex min-w-0 items-start gap-3 md:gap-4">
+          <IconTile
+            emoji={habit.emoji}
+            iconName={habit.emoji ? undefined : "check"}
+            size={56}
+            accent
+          />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="font-mono text-[10px] font-semibold uppercase tracking-wider text-accent">
+                {categoryLabel}
+              </div>
+              <div className="h-[3px] w-[3px] rounded-full bg-ink-mute" />
+              <div className="font-mono text-[10px] uppercase tracking-wider text-ink-mute">
+                {subLabel}
+              </div>
             </div>
-            <div className="h-[3px] w-[3px] rounded-full bg-ink-mute" />
-            <div className="font-mono text-[10px] uppercase tracking-wider text-ink-mute">
-              {subLabel}
+            <div className="mt-1 break-words font-display text-[22px] font-bold leading-tight text-ink tracking-tighter sm:text-[24px] lg:text-[28px]">
+              {habit.name}
             </div>
-          </div>
-          <div className="mt-1 font-display text-[26px] font-bold leading-tight text-ink tracking-tighter md:text-[28px]">
-            {habit.name}
-          </div>
-          <div className="mt-1 font-mono text-[12px] text-ink-dim">
-            {goalText}
+            <div className="mt-1 font-mono text-[12px] text-ink-dim">
+              {goalText}
+            </div>
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {!isArchived && !isPaused && (
             <Button
               variant={doneToday ? "secondary" : "primary"}
@@ -168,7 +170,7 @@ export function HabitDetail({
             >
               <HIcon name="check" size={16} strokeWidth={2.25} />
               {doneToday
-                ? `Feito hoje${todayCount > 1 ? ` (${todayCount})` : ""}`
+                ? `Feito${todayCount > 1 ? ` (${todayCount})` : ""}`
                 : habit.isNegative
                   ? "Dia sem"
                   : "Marcar feito"}
@@ -197,7 +199,7 @@ export function HabitDetail({
           {!isArchived && (
             <Button variant="outline" size="md" onClick={onEdit}>
               <HIcon name="settings" size={15} />
-              Editar
+              <span className="hidden sm:inline">Editar</span>
             </Button>
           )}
           {!isArchived &&
@@ -246,8 +248,8 @@ export function HabitDetail({
         </div>
       </div>
 
-      {/* Stats row (4) */}
-      <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
+      {/* Stats row — 2 colunas em qualquer container, 4 só em telas bem largas */}
+      <div className="grid grid-cols-2 gap-2.5 2xl:grid-cols-4">
         <StatCard value={`${current} dias`} label="Sequência atual" />
         <StatCard value={`${longest} dias`} label="Recorde" accent />
         <StatCard
