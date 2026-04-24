@@ -1,7 +1,12 @@
 import { create } from "zustand";
 import type { Habit } from "@/db/schema";
 
-export type ActiveView = "today" | "habit";
+export type ActiveView =
+  | "today"
+  | "habits"
+  | "stats"
+  | "calendar"
+  | "achievements";
 
 interface UIState {
   activeView: ActiveView;
@@ -10,7 +15,7 @@ interface UIState {
   showArchived: boolean;
   editingHabit: Habit | null;
   shortcutsOpen: boolean;
-  sidebarOpen: boolean; // mobile drawer
+  sidebarOpen: boolean;
   setView: (v: ActiveView) => void;
   setSelectedHabit: (id: string | null) => void;
   openCreate: () => void;
@@ -30,7 +35,7 @@ export const useUIStore = create<UIState>((set) => ({
   editingHabit: null,
   shortcutsOpen: false,
   sidebarOpen: false,
-  setView: (v) => set({ activeView: v }),
+  setView: (v) => set({ activeView: v, sidebarOpen: false }),
   setSelectedHabit: (id) => set({ selectedHabitId: id }),
   openCreate: () => set({ isCreateOpen: true }),
   closeCreate: () => set({ isCreateOpen: false }),
@@ -38,7 +43,6 @@ export const useUIStore = create<UIState>((set) => ({
     set((s) => ({
       showArchived: !s.showArchived,
       selectedHabitId: null,
-      activeView: "today",
     })),
   setEditing: (h) => set({ editingHabit: h }),
   setShortcutsOpen: (open) => set({ shortcutsOpen: open }),
