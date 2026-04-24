@@ -6,15 +6,15 @@ import { todayKey, toDateKey } from "@/lib/date";
 import { addDays } from "date-fns";
 
 describe("Heatmap", () => {
-  it("renders 53 weeks × 7 days of cells", () => {
-    render(<Heatmap entries={[]} color="#22c55e" />);
+  it("renders 20 weeks × 7 days of cells", () => {
+    render(<Heatmap entries={[]} />);
     const grid = screen.getByTestId("heatmap-grid");
-    expect(grid.children.length).toBe(53 * 7);
+    expect(grid.children.length).toBe(20 * 7);
   });
 
   it("today cell exposes aria-label with count", () => {
     const today = todayKey();
-    render(<Heatmap entries={[{ date: today, count: 3 }]} color="#22c55e" />);
+    render(<Heatmap entries={[{ date: today, count: 3 }]} />);
     expect(
       screen.getByLabelText(new RegExp(`^${today} contagem 3`)),
     ).toBeInTheDocument();
@@ -23,10 +23,7 @@ describe("Heatmap", () => {
   it("note indicator adds '(com nota)' to the label", () => {
     const today = todayKey();
     render(
-      <Heatmap
-        entries={[{ date: today, count: 1, note: "algo" }]}
-        color="#22c55e"
-      />,
+      <Heatmap entries={[{ date: today, count: 1, note: "algo" }]} />,
     );
     expect(
       screen.getByLabelText(new RegExp(`${today}.*com nota`)),
@@ -40,7 +37,6 @@ describe("Heatmap", () => {
     render(
       <Heatmap
         entries={[]}
-        color="#22c55e"
         onToggle={onToggle}
         onCellClick={onCellClick}
       />,
@@ -56,19 +52,16 @@ describe("Heatmap", () => {
     render(
       <Heatmap
         entries={[]}
-        color="#22c55e"
         retroactiveLimitDays={7}
         onCellClick={onCellClick}
       />,
     );
-    // 30 days ago is older than the 7-day threshold → disabled (cannot click)
     const tooOld = toDateKey(addDays(new Date(), -30));
     const btn = screen.queryByLabelText(new RegExp(`^${tooOld} não feito`));
     if (btn) {
       fireEvent.click(btn);
       expect(onCellClick).not.toHaveBeenCalled();
     }
-    // Yesterday is within the window → clickable
     const yesterday = toDateKey(addDays(new Date(), -1));
     const okBtn = screen.getByLabelText(new RegExp(`^${yesterday} não feito`));
     fireEvent.click(okBtn);
@@ -76,12 +69,11 @@ describe("Heatmap", () => {
   });
 
   it("month nav buttons are present and clickable", () => {
-    render(<Heatmap entries={[]} color="#22c55e" />);
+    render(<Heatmap entries={[]} />);
     const prev = screen.getByTestId("heatmap-prev-month");
     const next = screen.getByTestId("heatmap-next-month");
     fireEvent.click(prev);
     fireEvent.click(next);
-    // Smoke test — no errors
     expect(prev).toBeInTheDocument();
     expect(next).toBeInTheDocument();
   });

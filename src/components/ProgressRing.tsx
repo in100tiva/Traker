@@ -1,99 +1,85 @@
-import { motion } from "framer-motion";
-import CountUp from "react-countup";
-import { cn } from "@/lib/utils";
+import type { ReactNode } from "react";
 
 interface Props {
-  /** 0..1 */
+  /** 0..1 or 0..100. Values > 1 are treated as percentage. */
   value: number;
   size?: number;
   stroke?: number;
   color?: string;
-  label?: string;
-  sublabel?: string;
+  trackColor?: string;
   className?: string;
+  children?: ReactNode;
 }
 
+/**
+ * Dark-first circular progress ring matching the Streaks design.
+ * Transitions are handled via SVG stroke-dashoffset for smooth animation.
+ */
 export function ProgressRing({
   value,
-  size = 140,
-  stroke = 12,
+  size = 44,
+  stroke = 4,
   color,
-  label,
-  sublabel,
+  trackColor,
   className,
+  children,
 }: Props) {
-  const radius = (size - stroke) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const pct = Math.max(0, Math.min(1, value));
-  const offset = circumference * (1 - pct);
-  const displayPct = Math.round(pct * 100);
-  const strokeColor = color ?? "hsl(var(--primary))";
+  const pct = Math.max(0, Math.min(1, value > 1 ? value / 100 : value));
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const off = c * (1 - pct);
+  const strokeColor = color ?? "rgb(var(--accent))";
+  const track = trackColor ?? "rgb(var(--surface-3))";
 
   return (
     <div
-      className={cn("relative inline-grid place-items-center", className)}
-      style={{ width: size, height: size }}
+      className={className}
+      style={{
+        position: "relative",
+        width: size,
+        height: size,
+        flexShrink: 0,
+      }}
     >
       <svg
         width={size}
         height={size}
-        viewBox={`0 0 ${size} ${size}`}
-        className="rotate-[-90deg]"
+        style={{ transform: "rotate(-90deg)" }}
       >
         <circle
           cx={size / 2}
           cy={size / 2}
-          r={radius}
-          fill="transparent"
-          stroke="hsl(var(--muted))"
+          r={r}
+          stroke={track}
           strokeWidth={stroke}
+          fill="none"
         />
-        <motion.circle
+        <circle
           cx={size / 2}
           cy={size / 2}
-          r={radius}
-          fill="transparent"
+          r={r}
           stroke={strokeColor}
           strokeWidth={stroke}
+          fill="none"
+          strokeDasharray={c}
+          strokeDashoffset={off}
           strokeLinecap="round"
-          strokeDasharray={circumference}
-          initial={{ strokeDashoffset: circumference }}
-          animate={{ strokeDashoffset: offset }}
-          transition={{ duration: 0.8, ease: "easeOut" }}
-          style={{
-            filter:
-              pct > 0 ? `drop-shadow(0 0 6px ${strokeColor})` : undefined,
-          }}
+          style={{ transition: "stroke-dashoffset 0.4s ease" }}
         />
       </svg>
-      <div className="pointer-events-none absolute inset-0 grid place-items-center text-center">
-        <div>
-          <div
-            className="font-display text-3xl font-bold leading-none tracking-tight font-tabular"
-            style={{ color: pct >= 1 ? strokeColor : undefined }}
-          >
-            <CountUp
-              end={displayPct}
-              duration={0.8}
-              useEasing
-              preserveValue
-            />
-            <span className="ml-0.5 text-base font-normal text-muted-foreground">
-              %
-            </span>
-          </div>
-          {label && (
-            <div className="mt-0.5 text-xs font-medium text-muted-foreground">
-              {label}
-            </div>
-          )}
-          {sublabel && (
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
-              {sublabel}
-            </div>
-          )}
+      {children && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          {children}
         </div>
-      </div>
+      )}
     </div>
   );
 }

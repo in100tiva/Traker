@@ -1,112 +1,121 @@
-@import "@fontsource/inter/400.css";
-@import "@fontsource/inter/500.css";
-@import "@fontsource/inter/600.css";
-@import "@fontsource/inter/700.css";
-@import "@fontsource/space-grotesk/500.css";
-@import "@fontsource/space-grotesk/600.css";
-@import "@fontsource/space-grotesk/700.css";
+@import "@fontsource/geist-sans/400.css";
+@import "@fontsource/geist-sans/500.css";
+@import "@fontsource/geist-sans/600.css";
+@import "@fontsource/geist-sans/700.css";
+@import "@fontsource/geist-mono/400.css";
+@import "@fontsource/geist-mono/500.css";
+@import "@fontsource/geist-mono/600.css";
+@import "@fontsource/geist-mono/700.css";
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
-  :root {
-    /* Light theme — sem branco puro para dar mais respiração */
-    --background: 240 12% 97%;
-    --foreground: 240 10% 4%;
-    --surface-1: 0 0% 100%;
-    --surface-2: 240 6% 95%;
-    --surface-3: 240 6% 91%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 4%;
-    --primary: 142 72% 42%;
-    --primary-foreground: 0 0% 98%;
-    --primary-muted: 142 52% 88%;
-    --secondary: 240 6% 94%;
-    --secondary-foreground: 240 6% 10%;
-    --muted: 240 6% 94%;
-    --muted-foreground: 240 4% 42%;
-    --accent: 240 6% 92%;
-    --accent-foreground: 240 6% 10%;
-    --destructive: 0 72% 48%;
-    --destructive-foreground: 0 0% 98%;
-    --success: 142 72% 42%;
-    --warning: 32 92% 48%;
-    --info: 217 91% 55%;
-    --border: 240 6% 88%;
-    --input: 240 6% 86%;
-    --ring: 142 72% 42%;
-    --radius: 0.75rem;
+  :root,
+  .dark,
+  .light {
+    /* Streaks design system — dark-first, electric yellow accent */
+    --bg: 10 10 10; /* #0a0a0a */
+    --surface: 20 20 20; /* #141414 */
+    --surface-2: 28 28 28; /* #1c1c1c */
+    --surface-3: 36 36 36; /* #242424 */
+    --border: 255 255 255 / 0.06;
+    --border-strong: 255 255 255 / 0.10;
+    --text: 245 245 245; /* #f5f5f5 */
+    --text-dim: 245 245 245 / 0.6;
+    --text-mute: 245 245 245 / 0.38;
 
-    /* Elevação mais nítida no light */
-    --shadow-sm: 0 1px 3px 0 hsl(240 10% 4% / 0.08),
-      0 1px 2px -1px hsl(240 10% 4% / 0.04);
-    --shadow-md: 0 4px 16px -4px hsl(240 10% 4% / 0.1),
-      0 2px 6px -2px hsl(240 10% 4% / 0.06);
-    --shadow-lg: 0 16px 40px -12px hsl(240 10% 4% / 0.18),
-      0 4px 12px -4px hsl(240 10% 4% / 0.08);
-    --shadow-glow: 0 0 0 0 hsl(var(--primary) / 0);
+    --accent: 232 255 58; /* #e8ff3a */
+    --accent-dim: 232 255 58 / 0.15;
+    --accent-soft: 232 255 58 / 0.08;
+    --accent-ring: 232 255 58 / 0.25;
+
+    --success: 163 230 53; /* #a3e635 */
+    --warning: 234 179 8;
+    --danger: 239 68 68; /* #ef4444 */
+
+    /* Heatmap scale (yellow tinted) */
+    --hm-0: 26 26 26; /* #1a1a1a */
+    --hm-1: 232 255 58 / 0.12;
+    --hm-2: 232 255 58 / 0.28;
+    --hm-3: 232 255 58 / 0.55;
+    --hm-4: 232 255 58; /* #e8ff3a */
+
+    /* Radii */
+    --radius-sm: 8px;
+    --radius: 12px;
+    --radius-md: 12px;
+    --radius-lg: 18px;
+    --radius-xl: 24px;
+    --radius-pill: 999px;
+
+    /* Shadows */
+    --shadow-card: 0 0 0 1px rgb(var(--border));
+    --shadow-elevated: 0 10px 40px rgba(0, 0, 0, 0.4);
+    --shadow-dramatic: 0 30px 80px -10px rgba(0, 0, 0, 0.7);
+    --shadow-glow: 0 0 0 1px rgba(232, 255, 58, 0.2);
   }
+}
 
-  .dark {
-    --background: 240 10% 3.5%;
-    --foreground: 0 0% 98%;
-    --surface-1: 240 9% 6%;
-    --surface-2: 240 8% 9%;
-    --surface-3: 240 7% 13%;
-    --card: 240 9% 6%;
-    --card-foreground: 0 0% 98%;
-    --primary: 142 70% 50%;
-    --primary-foreground: 240 10% 3.5%;
-    --primary-muted: 142 40% 22%;
-    --secondary: 240 7% 13%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 7% 13%;
-    --muted-foreground: 240 5% 65%;
-    --accent: 240 7% 13%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 63% 45%;
-    --destructive-foreground: 0 0% 98%;
-    --success: 142 70% 50%;
-    --warning: 38 92% 55%;
-    --info: 217 91% 65%;
-    --border: 240 7% 15%;
-    --input: 240 7% 15%;
-    --ring: 142 70% 50%;
-
-    --shadow-sm: 0 1px 2px 0 hsl(0 0% 0% / 0.5);
-    --shadow-md: 0 4px 24px -8px hsl(0 0% 0% / 0.55);
-    --shadow-lg: 0 16px 48px -12px hsl(0 0% 0% / 0.65);
-    --shadow-glow: 0 0 32px -4px hsl(var(--primary) / 0.35);
+/* Aliases to keep shadcn components (which read named CSS vars) working */
+@layer base {
+  :root,
+  .dark,
+  .light {
+    --background: var(--bg);
+    --foreground: var(--text);
+    --card: var(--surface);
+    --card-foreground: var(--text);
+    --popover: var(--surface);
+    --popover-foreground: var(--text);
+    --primary: var(--accent);
+    --primary-foreground: 10 10 10;
+    --secondary: var(--surface-3);
+    --secondary-foreground: var(--text);
+    --muted: var(--surface-2);
+    --muted-foreground: var(--text-dim);
+    --accent-foreground: 10 10 10;
+    --destructive: var(--danger);
+    --destructive-foreground: 245 245 245;
+    --input: var(--surface-3);
+    --ring: var(--accent);
   }
 }
 
 @layer base {
   * {
-    @apply border-border;
+    border-color: rgb(var(--border));
   }
-  html {
+  html,
+  body {
+    background: rgb(var(--bg));
+    color: rgb(var(--text));
     font-family:
-      "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
-      Ubuntu, Cantarell, sans-serif;
+      "Geist Sans", "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI",
+      Roboto, sans-serif;
+    margin: 0;
+    padding: 0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overscroll-behavior: none;
+  }
+  body {
     font-feature-settings:
       "cv11", "ss01", "ss03";
   }
-  body {
-    @apply bg-background text-foreground;
-    -webkit-font-smoothing: antialiased;
-    overscroll-behavior: none;
+  .font-mono {
+    font-family: "Geist Mono", "JetBrains Mono", ui-monospace, SFMono-Regular,
+      Menlo, monospace;
   }
   .font-display {
-    font-family: "Space Grotesk", "Inter", sans-serif;
+    font-family: "Geist Sans", "Geist", sans-serif;
     letter-spacing: -0.02em;
   }
   .font-tabular {
     font-variant-numeric: tabular-nums;
   }
 
-  /* Remover spinner nativo dos inputs type=number em ambos os temas */
   input[type="number"]::-webkit-outer-spin-button,
   input[type="number"]::-webkit-inner-spin-button {
     -webkit-appearance: none;
@@ -121,7 +130,7 @@
     outline: none;
   }
   *:focus-visible {
-    @apply ring-2 ring-ring ring-offset-2 ring-offset-background;
+    box-shadow: 0 0 0 2px rgb(var(--bg)), 0 0 0 4px rgb(var(--accent));
   }
 
   @media (pointer: coarse) {
@@ -140,60 +149,49 @@
   }
 
   ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 10px;
+    height: 10px;
   }
   ::-webkit-scrollbar-track {
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: hsl(var(--border));
-    border-radius: 4px;
+    background: rgb(36 36 36);
+    border-radius: 5px;
+    border: 2px solid rgb(var(--bg));
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: hsl(var(--muted-foreground) / 0.4);
+    background: rgb(60 60 60);
   }
 }
 
 @layer utilities {
+  .shadow-card {
+    box-shadow: var(--shadow-card);
+  }
+  .shadow-elevated {
+    box-shadow: var(--shadow-elevated);
+  }
+  .shadow-dramatic {
+    box-shadow: var(--shadow-dramatic);
+  }
   .shadow-glow {
     box-shadow: var(--shadow-glow);
   }
-  .shadow-card {
-    box-shadow: var(--shadow-sm);
-  }
-  .shadow-elevated {
-    box-shadow: var(--shadow-md);
-  }
 
-  @keyframes pulse-flame {
+  @keyframes flame-pulse {
     0%,
     100% {
-      transform: scale(1) rotate(-2deg);
-      filter: drop-shadow(0 0 4px currentColor);
+      filter: drop-shadow(0 0 4px rgb(var(--accent) / 0.5));
+      transform: scale(1) rotate(-1deg);
     }
     50% {
-      transform: scale(1.15) rotate(2deg);
-      filter: drop-shadow(0 0 8px currentColor);
+      filter: drop-shadow(0 0 10px rgb(var(--accent) / 0.7));
+      transform: scale(1.08) rotate(1deg);
     }
   }
   .animate-flame {
-    animation: pulse-flame 1.5s ease-in-out infinite;
-  }
-
-  @keyframes check-pop {
-    0% {
-      transform: scale(0.8);
-    }
-    50% {
-      transform: scale(1.2);
-    }
-    100% {
-      transform: scale(1);
-    }
-  }
-  .animate-check {
-    animation: check-pop 0.3s ease-out;
+    animation: flame-pulse 1.8s ease-in-out infinite;
   }
 
   @keyframes shimmer {
@@ -207,32 +205,11 @@
   .animate-shimmer {
     background: linear-gradient(
       90deg,
-      hsl(var(--muted)) 0%,
-      hsl(var(--surface-3)) 50%,
-      hsl(var(--muted)) 100%
+      rgb(var(--surface-2)) 0%,
+      rgb(var(--surface-3)) 50%,
+      rgb(var(--surface-2)) 100%
     );
     background-size: 200% 100%;
     animation: shimmer 1.4s ease-in-out infinite;
-  }
-
-  @keyframes today-glow {
-    0%,
-    100% {
-      box-shadow: 0 0 0 0 hsl(var(--foreground) / 0.25);
-    }
-    50% {
-      box-shadow: 0 0 0 3px hsl(var(--foreground) / 0.18);
-    }
-  }
-  .animate-today-glow {
-    animation: today-glow 2.2s ease-in-out infinite;
-  }
-
-  /* Interactive lift para cards clicáveis */
-  .lift-on-hover {
-    @apply transition-all duration-200;
-  }
-  .lift-on-hover:hover {
-    @apply -translate-y-px shadow-elevated;
   }
 }

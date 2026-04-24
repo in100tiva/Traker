@@ -60,7 +60,7 @@ export function DayNoteDialog({
         </DialogHeader>
         <div className="space-y-3">
           <Button
-            variant={done ? "secondary" : "default"}
+            variant={done ? "secondary" : "primary"}
             onClick={onToggleDone}
             className="w-full"
           >

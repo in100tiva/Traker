@@ -1,71 +1,90 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Flame, Pause, Pencil, Plus, Minus } from "lucide-react";
 import type { DbBundle } from "@/db/client";
 import type { Habit } from "@/db/schema";
+import type { CompletionRecord, WeeklyCount } from "@/db/queries";
+import { Hero } from "./Hero";
+import { HabitGridCard } from "./HabitGridCard";
+import { HabitDetail } from "./HabitDetail";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { AnimatedCheckbox } from "./AnimatedCheckbox";
-import { ProgressRing } from "./ProgressRing";
-import { Greeting } from "./Greeting";
-import { cn } from "@/lib/utils";
-import { todayKey } from "@/lib/date";
-import { haptics } from "@/lib/haptics";
+import { HIcon } from "./icons/HIcon";
+import { toDateKey, todayKey, type DateKey } from "@/lib/date";
+import { addDays, startOfWeek } from "date-fns";
 import {
   ALL_DAYS_SCHEDULE,
   isScheduledOn,
-  scheduleLabel,
 } from "@/lib/schedule";
-
-interface StreakMap {
-  [habitId: string]: number;
-}
-
-interface CompletionToday {
-  count: number;
-  note: string | null;
-}
+import {
+  calculateCurrentStreak,
+  calculateLongestStreak,
+} from "@/lib/streak";
+import { cn } from "@/lib/utils";
 
 interface Props {
   bundle: DbBundle | null;
   habits: Habit[];
-  loading?: boolean;
-  onToggle: (habitId: string, date: Date) => Promise<void>;
-  onIncrement: (habitId: string, delta: number) => Promise<void>;
+  selected: Habit | null;
+  detailCompletions: CompletionRecord[];
+  detailWeekly: WeeklyCount[];
+  retroactiveLimitDays: number;
   onSelectHabit: (id: string) => void;
-  onEdit: (habit: Habit) => void;
+  onToggleAny: (habitId: string, date: Date) => Promise<void>;
+  onToggleDetailToday: () => void;
+  onIncrementDetailToday: (delta: number) => void;
+  onEditDetail: () => void;
+  onArchiveDetail: () => void;
+  onUnarchiveDetail: () => void;
+  onPauseDetail: () => void;
+  onResumeDetail: () => void;
+  onDeleteDetail: () => void;
+  onCellClickDetail: (date: Date) => void;
   onOpenCreate: () => void;
 }
 
+interface AllDatesMap {
+  [habitId: string]: DateKey[];
+}
+
+/**
+ * Dashboard view — hero + habits grid + detail panel.
+ * Handles both "today" and "archived" (via the Sidebar's toggle; we check
+ * the habit list passed in).
+ */
 export function TodayView({
   bundle,
   habits,
-  loading,
-  onToggle,
-  onIncrement,
+  selected,
+  detailCompletions,
+  detailWeekly,
+  retroactiveLimitDays,
   onSelectHabit,
-  onEdit,
+  onToggleAny,
+  onToggleDetailToday,
+  onIncrementDetailToday,
+  onEditDetail,
+  onArchiveDetail,
+  onUnarchiveDetail,
+  onPauseDetail,
+  onResumeDetail,
+  onDeleteDetail,
+  onCellClickDetail,
   onOpenCreate,
 }: Props) {
   const today = todayKey();
-  const [todayMap, setTodayMap] = useState<Map<string, CompletionToday>>(
+  const [todayMap, setTodayMap] = useState<Map<string, { count: number }>>(
     new Map(),
   );
-  const [streaks, setStreaks] = useState<StreakMap>({});
+  const [allDates, setAllDates] = useState<AllDatesMap>({});
+  const [filter, setFilter] = useState<string>("Todos");
 
+  // Today-completions live query
   const refreshTodayMap = useCallback(async () => {
     if (!bundle) return;
     const { rows } = await bundle.pg.query<{
       habit_id: string;
       count: number;
-      note: string | null;
-    }>(
-      `SELECT habit_id, count, note FROM completions WHERE date = $1`,
-      [today],
-    );
-    const map = new Map<string, CompletionToday>();
-    for (const r of rows) map.set(r.habit_id, { count: r.count, note: r.note });
+    }>(`SELECT habit_id, count FROM completions WHERE date = $1`, [today]);
+    const map = new Map<string, { count: number }>();
+    for (const r of rows) map.set(r.habit_id, { count: r.count });
     setTodayMap(map);
   }, [bundle, today]);
 
@@ -74,14 +93,14 @@ export function TodayView({
     let cancelled = false;
     let unsub: (() => void) | null = null;
     bundle.pg.live
-      .query<{ habit_id: string; count: number; note: string | null }>(
-        `SELECT habit_id, count, note FROM completions WHERE date = $1`,
+      .query<{ habit_id: string; count: number }>(
+        `SELECT habit_id, count FROM completions WHERE date = $1`,
         [today],
         (res) => {
           if (cancelled) return;
-          const map = new Map<string, CompletionToday>();
+          const map = new Map<string, { count: number }>();
           for (const r of res.rows)
-            map.set(r.habit_id, { count: r.count, note: r.note });
+            map.set(r.habit_id, { count: r.count });
           setTodayMap(map);
         },
       )
@@ -95,494 +114,296 @@ export function TodayView({
     };
   }, [bundle, today]);
 
-  // Compute streaks per habit via a single SQL query (last completion + gap check is complex — we fetch recent dates per habit).
-  const refreshStreaks = useCallback(async () => {
-    if (!bundle || habits.length === 0) return;
-    const map: StreakMap = {};
-    for (const h of habits) {
-      const { rows } = await bundle.pg.query<{ date: string }>(
-        `SELECT date::text AS date FROM completions
-           WHERE habit_id = $1 AND date > $2
-           ORDER BY date DESC LIMIT 500`,
-        [h.id, addDaysISO(today, -400)],
-      );
-      map[h.id] = computeStreakFromDates(rows.map((r) => r.date), today);
-    }
-    setStreaks(map);
-  }, [bundle, habits, today]);
-
+  // Fetch completion dates for each habit for streak/grid pct
   useEffect(() => {
     if (!bundle || habits.length === 0) return;
     let cancelled = false;
     (async () => {
-      const map: StreakMap = {};
+      const map: AllDatesMap = {};
+      const since = toDateKey(addDays(new Date(), -400));
       for (const h of habits) {
         const { rows } = await bundle.pg.query<{ date: string }>(
           `SELECT date::text AS date FROM completions
-           WHERE habit_id = $1 AND date > $2
-           ORDER BY date DESC LIMIT 500`,
-          [h.id, addDaysISO(today, -400)],
+             WHERE habit_id = $1 AND date >= $2
+             ORDER BY date ASC LIMIT 500`,
+          [h.id, since],
         );
-        map[h.id] = computeStreakFromDates(rows.map((r) => r.date), today);
+        map[h.id] = rows.map((r) => r.date);
       }
-      if (!cancelled) setStreaks(map);
+      if (!cancelled) setAllDates(map);
     })();
     return () => {
       cancelled = true;
     };
-  }, [bundle, habits, todayMap, today]);
+  }, [bundle, habits, todayMap]);
 
-  const todayDate = useMemo(() => new Date(), []);
-  const active = useMemo(
-    () => habits.filter((h) => !h.archivedAt && !h.pausedAt),
-    [habits],
-  );
-  const paused = useMemo(
-    () => habits.filter((h) => !h.archivedAt && h.pausedAt),
-    [habits],
-  );
-  // Scheduled for today vs off-day (but still active)
+  // Computed metrics
   const todaysHabits = useMemo(
     () =>
-      active.filter((h) =>
-        isScheduledOn(h.schedule ?? ALL_DAYS_SCHEDULE, todayDate),
+      habits.filter(
+        (h) =>
+          !h.archivedAt &&
+          !h.pausedAt &&
+          isScheduledOn(h.schedule ?? ALL_DAYS_SCHEDULE, new Date()),
       ),
-    [active, todayDate],
+    [habits],
   );
   const offDayHabits = useMemo(
     () =>
-      active.filter(
+      habits.filter(
         (h) =>
-          !isScheduledOn(h.schedule ?? ALL_DAYS_SCHEDULE, todayDate) &&
+          !h.archivedAt &&
+          !h.pausedAt &&
+          !isScheduledOn(h.schedule ?? ALL_DAYS_SCHEDULE, new Date()) &&
           (h.schedule ?? ALL_DAYS_SCHEDULE) !== ALL_DAYS_SCHEDULE,
       ),
-    [active, todayDate],
+    [habits],
   );
-
-  // Progress percentage uses ONLY scheduled-for-today habits
-  const doneCount = todaysHabits.filter((h) => todayMap.has(h.id)).length;
+  const done = todaysHabits.filter((h) => todayMap.has(h.id)).length;
   const total = todaysHabits.length;
-  const pct = total === 0 ? 0 : doneCount / total;
 
-  // Group today's habits by tag
-  const groupedToday = useMemo(() => {
-    const groups = new Map<string, Habit[]>();
-    for (const h of todaysHabits) {
-      const key = h.tag ?? "_untagged";
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key)!.push(h);
+  const streakByHabit = useMemo(() => {
+    const out: { [id: string]: { current: number; longest: number } } = {};
+    for (const h of habits) {
+      const dates = allDates[h.id] ?? [];
+      out[h.id] = {
+        current: calculateCurrentStreak(
+          dates,
+          today,
+          h.schedule ?? ALL_DAYS_SCHEDULE,
+        ),
+        longest: calculateLongestStreak(
+          dates,
+          h.schedule ?? ALL_DAYS_SCHEDULE,
+        ),
+      };
     }
-    return Array.from(groups.entries()).sort(([a], [b]) => {
-      if (a === "_untagged") return 1;
-      if (b === "_untagged") return -1;
-      return a.localeCompare(b);
-    });
-  }, [todaysHabits]);
+    return out;
+  }, [habits, allDates, today]);
 
-  if (loading && habits.length === 0) {
-    return (
-      <div className="space-y-6">
-        <Card>
-          <CardContent className="p-6">
-            <Skeleton className="h-24 w-full" />
-          </CardContent>
-        </Card>
-        <div className="space-y-2">
-          {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-16 w-full" />
-          ))}
-        </div>
-      </div>
-    );
-  }
+  const maxCurrent = useMemo(() => {
+    let best: { id: string; streak: number; name: string } | null = null;
+    for (const h of habits) {
+      const s = streakByHabit[h.id]?.current ?? 0;
+      if (!best || s > best.streak) best = { id: h.id, streak: s, name: h.name };
+    }
+    return best ?? { id: "", streak: 0, name: "" };
+  }, [habits, streakByHabit]);
 
-  return (
-    <div className="space-y-6">
-      <Card elevated className="overflow-hidden">
-        <CardContent className="flex items-center gap-6 p-6">
-          <ProgressRing
-            value={pct}
-            size={124}
-            stroke={12}
-            label={
-              total === 0
-                ? "vazio"
-                : doneCount === total
-                  ? "feito!"
-                  : `${doneCount}/${total}`
-            }
-            sublabel="hoje"
-          />
-          <div className="flex-1">
-            <Greeting pendingCount={total - doneCount} totalCount={total} />
-            {total === 0 && (
-              <Button size="sm" className="mt-3" onClick={onOpenCreate}>
-                <Plus className="h-4 w-4" />
-                Criar primeiro hábito
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+  // (recordStreak is computed in App.tsx/Sidebar via its own query; leaving
+  // this block out avoids a duplicate pass here.)
 
-      {active.length === 0 ? (
-        <EmptyIllustration onCreate={onOpenCreate} />
-      ) : (
-        <>
-          {todaysHabits.length === 0 && offDayHabits.length > 0 && (
-            <div className="rounded-xl border border-dashed bg-card/30 p-5 text-center text-sm text-muted-foreground">
-              Nenhum hábito programado para hoje. Aproveite o dia livre 🎉
-            </div>
-          )}
+  // Week summary: done/goal + dots
+  const weekInfo = useMemo(() => {
+    const weekStart = startOfWeek(new Date(), { weekStartsOn: 0 });
+    const todayDate = new Date();
+    let weekDone = 0;
+    let weekGoal = 0;
+    const dots: boolean[] = Array.from({ length: 7 }, () => false);
+    for (const h of habits) {
+      if (h.archivedAt || h.pausedAt) continue;
+      const sch = h.schedule ?? ALL_DAYS_SCHEDULE;
+      const dates = allDates[h.id] ?? [];
+      const set = new Set(dates);
+      for (let i = 0; i < 7; i++) {
+        const d = addDays(weekStart, i);
+        if (d > todayDate) continue;
+        const key = toDateKey(d);
+        if (isScheduledOn(sch, d)) {
+          weekGoal += 1;
+          if (set.has(key)) {
+            weekDone += 1;
+            dots[i] = true;
+          }
+        } else if (set.has(key)) {
+          dots[i] = true;
+        }
+      }
+    }
+    return { weekDone, weekGoal, dots };
+  }, [habits, allDates]);
 
-          {groupedToday.map(([key, list]) => (
-            <TagGroup
-              key={key}
-              title={key === "_untagged" ? null : key}
-              habits={list}
-              todayMap={todayMap}
-              streaks={streaks}
-              onToggle={async (id, d) => {
-                haptics.tap();
-                await onToggle(id, d);
-                await refreshTodayMap();
-                await refreshStreaks();
-              }}
-              onIncrement={async (id, delta) => {
-                await onIncrement(id, delta);
-                await refreshTodayMap();
-                await refreshStreaks();
-              }}
-              onSelect={onSelectHabit}
-              onEdit={onEdit}
-            />
-          ))}
+  const percentsByHabit = useMemo(() => {
+    const out: { [id: string]: number } = {};
+    for (const h of habits) {
+      const dates = allDates[h.id] ?? [];
+      const sch = h.schedule ?? ALL_DAYS_SCHEDULE;
+      // Completion rate on the last 30 scheduled days
+      let marked = 0;
+      let scheduled = 0;
+      const today = new Date();
+      for (let i = 0; i < 30; i++) {
+        const d = addDays(today, -i);
+        if (isScheduledOn(sch, d)) {
+          scheduled += 1;
+          if (dates.includes(toDateKey(d))) marked += 1;
+        }
+      }
+      out[h.id] = scheduled === 0 ? 0 : Math.round((marked / scheduled) * 100);
+    }
+    return out;
+  }, [habits, allDates]);
 
-          {offDayHabits.length > 0 && (
-            <div>
-              <div className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Outros dias da semana
-              </div>
-              <ul className="space-y-2">
-                {offDayHabits.map((h) => (
-                  <div
-                    key={h.id}
-                    className="flex items-center gap-3 rounded-xl border border-dashed bg-muted/20 p-3 opacity-75"
-                  >
-                    <div
-                      className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-lg"
-                      style={{
-                        backgroundColor: `${h.color}22`,
-                        border: `1px solid ${h.color}66`,
-                      }}
-                    >
-                      {h.emoji ?? (
-                        <span
-                          className="h-2 w-2 rounded-full"
-                          style={{ backgroundColor: h.color }}
-                        />
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => onSelectHabit(h.id)}
-                      className="flex flex-1 flex-col items-start overflow-hidden text-left"
-                    >
-                      <span className="font-medium text-muted-foreground">
-                        {h.name}
-                      </span>
-                      <span className="text-xs text-muted-foreground/70">
-                        {scheduleLabel(h.schedule ?? ALL_DAYS_SCHEDULE)}
-                      </span>
-                    </button>
-                  </div>
-                ))}
-              </ul>
-            </div>
-          )}
+  // Tags for filters
+  const tags = useMemo(() => {
+    const set = new Set<string>();
+    for (const h of habits) if (h.tag) set.add(h.tag);
+    return ["Todos", ...Array.from(set).sort()];
+  }, [habits]);
 
-          {paused.length > 0 && (
-            <div>
-              <div className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                <Pause className="h-3 w-3" /> Pausados
-              </div>
-              <ul className="space-y-2 opacity-60">
-                {paused.map((h) => (
-                  <HabitRow
-                    key={h.id}
-                    habit={h}
-                    todayEntry={todayMap.get(h.id)}
-                    streak={streaks[h.id] ?? 0}
-                    onToggle={() => {}}
-                    onIncrement={() => {}}
-                    onSelect={() => onSelectHabit(h.id)}
-                    onEdit={() => onEdit(h)}
-                    disabled
-                  />
-                ))}
-              </ul>
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
-function TagGroup({
-  title,
-  habits,
-  todayMap,
-  streaks,
-  onToggle,
-  onIncrement,
-  onSelect,
-  onEdit,
-}: {
-  title: string | null;
-  habits: Habit[];
-  todayMap: Map<string, CompletionToday>;
-  streaks: StreakMap;
-  onToggle: (id: string, d: Date) => Promise<void>;
-  onIncrement: (id: string, delta: number) => Promise<void>;
-  onSelect: (id: string) => void;
-  onEdit: (h: Habit) => void;
-}) {
-  const done = habits.filter((h) => todayMap.has(h.id)).length;
-  return (
-    <div>
-      {title && (
-        <div className="mb-2 flex items-center justify-between px-1">
-          <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            #{title}
-          </div>
-          <div className="text-xs tabular-nums text-muted-foreground">
-            {done}/{habits.length}
-          </div>
-        </div>
-      )}
-      <ul className="space-y-2">
-        <AnimatePresence initial={false}>
-          {habits.map((habit) => (
-            <motion.li
-              key={habit.id}
-              layout
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.18 }}
-            >
-              <HabitRow
-                habit={habit}
-                todayEntry={todayMap.get(habit.id)}
-                streak={streaks[habit.id] ?? 0}
-                onToggle={() => onToggle(habit.id, new Date())}
-                onIncrement={(d) => onIncrement(habit.id, d)}
-                onSelect={() => onSelect(habit.id)}
-                onEdit={() => onEdit(habit)}
-              />
-            </motion.li>
-          ))}
-        </AnimatePresence>
-      </ul>
-    </div>
-  );
-}
-
-function HabitRow({
-  habit,
-  todayEntry,
-  streak,
-  onToggle,
-  onIncrement,
-  onSelect,
-  onEdit,
-  disabled,
-}: {
-  habit: Habit;
-  todayEntry: CompletionToday | undefined;
-  streak: number;
-  onToggle: () => void;
-  onIncrement: (delta: number) => void;
-  onSelect: () => void;
-  onEdit: () => void;
-  disabled?: boolean;
-}) {
-  const done = Boolean(todayEntry);
-  const count = todayEntry?.count ?? 0;
-  const quantitative =
-    habit.targetPerDay !== null && habit.targetPerDay !== undefined;
-  const dayProgress =
-    quantitative && habit.targetPerDay
-      ? Math.min(1, count / habit.targetPerDay)
-      : null;
+  const filteredHabits = useMemo(() => {
+    if (filter === "Todos") return habits;
+    return habits.filter((h) => h.tag === filter);
+  }, [habits, filter]);
 
   return (
-    <div
-      className={cn(
-        "group relative flex items-center gap-3 overflow-hidden rounded-xl border bg-card p-3 shadow-card transition-all duration-200",
-        done && "border-primary/30",
-        !disabled && "hover:-translate-y-px hover:border-foreground/20 hover:shadow-elevated",
-      )}
-      style={{
-        backgroundImage: done
-          ? `linear-gradient(90deg, ${habit.color}10, transparent 40%)`
-          : undefined,
-      }}
-    >
-      <AnimatedCheckbox
-        checked={done}
-        color={habit.color}
-        onClick={(e) => {
-          e.stopPropagation();
-          if (!disabled) onToggle();
-        }}
-        aria-label={done ? `Desmarcar ${habit.name}` : `Marcar ${habit.name}`}
+    <div className="flex flex-col gap-5 md:gap-6">
+      <Hero
+        total={total}
+        done={done}
+        maxStreak={maxCurrent.streak}
+        maxStreakHabit={maxCurrent.name}
+        weekDone={weekInfo.weekDone}
+        weekGoal={weekInfo.weekGoal}
+        weekCompleted={weekInfo.dots}
       />
-      <button
-        type="button"
-        onClick={onSelect}
-        className="flex flex-1 flex-col items-start overflow-hidden text-left"
-      >
-        <div className="flex w-full items-center gap-2">
-          <span
-            className={cn(
-              "truncate font-medium",
-              done && "text-muted-foreground line-through decoration-1",
+
+      {habits.length === 0 ? (
+        <EmptyState onCreate={onOpenCreate} />
+      ) : (
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1.2fr_1.4fr] lg:gap-6">
+          {/* Left: habit grid */}
+          <div>
+            <div className="mb-3.5 flex items-center justify-between gap-3">
+              <div>
+                <div className="font-display text-[17px] font-semibold text-ink tracking-tighter">
+                  Hábitos de hoje{" "}
+                  <span className="font-medium text-ink-mute">
+                    ({todaysHabits.length})
+                  </span>
+                </div>
+                <div className="mt-0.5 font-mono text-[10.5px] text-ink-dim">
+                  Clique em um card para ver detalhes
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {tags.slice(0, 4).map((f) => (
+                  <button
+                    key={f}
+                    type="button"
+                    onClick={() => setFilter(f)}
+                    className={cn(
+                      "h-7 rounded-pill border px-3 text-[12px] font-medium transition-colors",
+                      filter === f
+                        ? "border-border-strong bg-surface-3 text-ink"
+                        : "border-border bg-transparent text-ink-dim hover:bg-surface-2 hover:text-ink",
+                    )}
+                  >
+                    {f}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              {filteredHabits.map((h) => (
+                <HabitGridCard
+                  key={h.id}
+                  habit={h}
+                  done={todayMap.has(h.id)}
+                  streakDays={streakByHabit[h.id]?.current ?? 0}
+                  completionPct={percentsByHabit[h.id] ?? 0}
+                  entries={(allDates[h.id] ?? []).map((d) => ({
+                    date: d,
+                    count: 1,
+                  }))}
+                  selected={selected?.id === h.id}
+                  onSelect={() => onSelectHabit(h.id)}
+                  onToggle={async () => {
+                    await onToggleAny(h.id, new Date());
+                    await refreshTodayMap();
+                  }}
+                />
+              ))}
+            </div>
+
+            {offDayHabits.length > 0 && (
+              <div className="mt-6">
+                <div className="mb-2 font-mono text-[10px] uppercase tracking-wider text-ink-mute">
+                  Outros dias da semana
+                </div>
+                <ul className="flex flex-col gap-2">
+                  {offDayHabits.map((h) => (
+                    <li key={h.id}>
+                      <button
+                        type="button"
+                        onClick={() => onSelectHabit(h.id)}
+                        className="flex w-full items-center gap-3 rounded-lg border border-dashed border-border bg-surface-2/50 px-4 py-3 text-left text-[13px] opacity-80 transition-colors hover:opacity-100"
+                      >
+                        <span className="text-base leading-none">
+                          {h.emoji ?? "•"}
+                        </span>
+                        <span className="flex-1 text-ink-dim">{h.name}</span>
+                        <HIcon
+                          name="chevron-right"
+                          size={14}
+                          color="rgb(var(--text-mute))"
+                        />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
-          >
-            {habit.name}
-          </span>
-          {streak > 0 && (
-            <span
-              className="inline-flex items-center gap-0.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-muted-foreground"
-              title={`Sequência de ${streak} dias`}
-            >
-              <Flame
-                className={cn(
-                  "h-3 w-3",
-                  streak >= 7 ? "text-orange-500" : "text-amber-500",
-                )}
-              />
-              {streak}d
-            </span>
-          )}
-          {habit.isNegative && (
-            <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-              abst
-            </span>
-          )}
-        </div>
-        {habit.description && (
-          <span className="truncate text-xs text-muted-foreground">
-            {habit.description}
-          </span>
-        )}
-        {dayProgress !== null && (
-          <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-muted">
-            <motion.div
-              className="h-full"
-              style={{ backgroundColor: habit.color }}
-              initial={{ width: 0 }}
-              animate={{ width: `${dayProgress * 100}%` }}
-              transition={{ duration: 0.4, ease: "easeOut" }}
-            />
           </div>
-        )}
-      </button>
-      <div className="flex items-center gap-1">
-        {done && quantitative && (
-          <>
-            <Button
-              variant="ghost"
-              size="iconSm"
-              onClick={() => onIncrement(-1)}
-              aria-label="Diminuir"
-            >
-              <Minus className="h-3.5 w-3.5" />
-            </Button>
-            <span className="min-w-[2ch] text-center font-mono text-xs tabular-nums text-muted-foreground">
-              {count}
-            </span>
-            <Button
-              variant="ghost"
-              size="iconSm"
-              onClick={() => onIncrement(1)}
-              aria-label="Aumentar"
-            >
-              <Plus className="h-3.5 w-3.5" />
-            </Button>
-          </>
-        )}
-        {done && !quantitative && count > 1 && (
-          <span className="text-xs text-muted-foreground">{count}×</span>
-        )}
-        <Button
-          variant="ghost"
-          size="iconSm"
-          onClick={onEdit}
-          aria-label="Editar"
-          className="opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-        >
-          <Pencil className="h-3.5 w-3.5" />
-        </Button>
-      </div>
+
+          {/* Right: detail panel */}
+          <div>
+            {selected ? (
+              <HabitDetail
+                bundle={bundle}
+                habit={selected}
+                completions={detailCompletions}
+                weekly={detailWeekly}
+                retroactiveLimitDays={retroactiveLimitDays}
+                onToggleToday={onToggleDetailToday}
+                onIncrementToday={onIncrementDetailToday}
+                onCellClick={onCellClickDetail}
+                onArchive={onArchiveDetail}
+                onUnarchive={onUnarchiveDetail}
+                onPause={onPauseDetail}
+                onResume={onResumeDetail}
+                onDelete={onDeleteDetail}
+                onEdit={onEditDetail}
+              />
+            ) : (
+              <div className="flex h-60 items-center justify-center rounded-xl border border-dashed border-border bg-surface/30 font-mono text-[11px] text-ink-mute">
+                Selecione um hábito para ver detalhes
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function EmptyIllustration({ onCreate }: { onCreate: () => void }) {
+function EmptyState({ onCreate }: { onCreate: () => void }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed bg-card/30 p-12 text-center">
-      <div className="mb-4 grid h-16 w-16 place-items-center rounded-2xl bg-primary/10 ring-1 ring-primary/20">
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          className="h-8 w-8 text-primary"
-        >
-          <path
-            d="M4 12.5L9.5 18L20 7"
-            stroke="currentColor"
-            strokeWidth={2.5}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
+    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface/30 p-12 text-center">
+      <div className="grid h-14 w-14 place-items-center rounded-lg bg-accent-soft ring-1 ring-accent-ring">
+        <HIcon name="check" size={24} color="rgb(var(--accent))" strokeWidth={2} />
       </div>
-      <h3 className="font-display text-lg font-semibold">Comece com um hábito</h3>
-      <p className="mt-1 max-w-xs text-sm text-muted-foreground">
+      <h3 className="mt-4 font-display text-[17px] font-semibold tracking-tighter text-ink">
+        Comece com um hábito
+      </h3>
+      <p className="mt-1 max-w-xs text-[13px] leading-[1.5] text-ink-dim">
         Pequenas consistências compõem grandes mudanças. Crie seu primeiro
         hábito e marque hoje.
       </p>
-      <Button onClick={onCreate} className="mt-4">
-        <Plus className="h-4 w-4" />
+      <Button variant="primary" size="md" className="mt-4" onClick={onCreate}>
+        <HIcon name="plus" size={14} strokeWidth={2} />
         Novo hábito
       </Button>
     </div>
   );
-}
-
-// ------- helpers -------
-
-function addDaysISO(dateKey: string, delta: number): string {
-  const d = new Date(dateKey + "T00:00:00");
-  d.setDate(d.getDate() + delta);
-  return d.toISOString().slice(0, 10);
-}
-
-function computeStreakFromDates(dates: string[], today: string): number {
-  const set = new Set(dates);
-  if (set.size === 0) return 0;
-  // walk back starting from today; if today missing but yesterday present, start from yesterday
-  let cursor = new Date(today + "T00:00:00");
-  if (!set.has(today)) {
-    cursor.setDate(cursor.getDate() - 1);
-    if (!set.has(cursor.toISOString().slice(0, 10))) return 0;
-  }
-  let streak = 0;
-  while (set.has(cursor.toISOString().slice(0, 10))) {
-    streak += 1;
-    cursor.setDate(cursor.getDate() - 1);
-  }
-  return streak;
 }

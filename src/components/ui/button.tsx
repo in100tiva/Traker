@@ -4,30 +4,32 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all active:scale-[0.98] focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 cursor-pointer select-none",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-pill font-medium select-none cursor-pointer transition-all active:scale-[0.97] focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 tracking-[-0.01em]",
   {
     variants: {
       variant: {
-        default:
-          "bg-primary text-primary-foreground shadow-card hover:bg-primary/90 hover:shadow-elevated",
-        destructive:
-          "bg-destructive text-destructive-foreground shadow-card hover:bg-destructive/90",
-        outline:
-          "border border-input bg-background hover:bg-accent hover:text-accent-foreground hover:border-border",
+        primary:
+          "bg-accent text-[rgb(10,10,10)] font-semibold hover:bg-accent/90",
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        ghost: "hover:bg-accent hover:text-accent-foreground",
-        link: "text-primary underline-offset-4 hover:underline",
+          "bg-surface-3 text-ink hover:bg-[rgb(48,48,48)]",
+        ghost:
+          "bg-transparent text-ink-dim border border-border hover:bg-surface-2 hover:text-ink",
+        outline:
+          "bg-transparent text-ink border border-border-strong hover:bg-surface-2",
+        danger:
+          "bg-transparent text-danger border border-danger/30 hover:bg-danger/10",
+        accent:
+          "bg-accent-soft text-accent border border-accent-ring hover:bg-accent-dim",
       },
       size: {
-        default: "h-10 px-4 py-2",
-        sm: "h-8 rounded-md px-3 text-xs",
-        lg: "h-12 rounded-lg px-8 text-base font-semibold",
-        icon: "h-10 w-10",
-        iconSm: "h-8 w-8",
+        sm: "h-8 px-3 text-xs gap-1.5",
+        md: "h-11 px-[18px] text-sm gap-2",
+        lg: "h-13 px-[22px] text-[15px] gap-2.5",
+        icon: "h-11 w-11 p-0",
+        iconSm: "h-8 w-8 p-0",
       },
     },
-    defaultVariants: { variant: "default", size: "default" },
+    defaultVariants: { variant: "secondary", size: "md" },
   },
 );
 
