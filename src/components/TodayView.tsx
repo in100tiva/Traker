@@ -271,11 +271,11 @@ export function TodayView({
       {habits.length === 0 ? (
         <EmptyState onCreate={onOpenCreate} />
       ) : (
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1.2fr_1.4fr] lg:gap-6">
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,1.45fr)] xl:gap-6">
           {/* Left: habit grid */}
-          <div>
-            <div className="mb-3.5 flex items-center justify-between gap-3">
-              <div>
+          <div className="min-w-0">
+            <div className="mb-3.5 flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
                 <div className="font-display text-[17px] font-semibold text-ink tracking-tighter">
                   Hábitos de hoje{" "}
                   <span className="font-medium text-ink-mute">
@@ -304,7 +304,7 @@ export function TodayView({
                 ))}
               </div>
             </div>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {filteredHabits.map((h) => (
                 <HabitGridCard
                   key={h.id}
@@ -342,7 +342,9 @@ export function TodayView({
                         <span className="text-base leading-none">
                           {h.emoji ?? "•"}
                         </span>
-                        <span className="flex-1 text-ink-dim">{h.name}</span>
+                        <span className="flex-1 truncate text-ink-dim">
+                          {h.name}
+                        </span>
                         <HIcon
                           name="chevron-right"
                           size={14}
@@ -357,7 +359,7 @@ export function TodayView({
           </div>
 
           {/* Right: detail panel */}
-          <div>
+          <div className="min-w-0">
             {selected ? (
               <HabitDetail
                 bundle={bundle}

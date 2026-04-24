@@ -59,18 +59,25 @@ export function Hero({
   });
 
   return (
-    <div className="grid grid-cols-1 gap-5 rounded-xl border border-border bg-surface p-6 md:grid-cols-[1.1fr_1fr_1fr_1fr] md:gap-6 md:p-7">
-      {/* Col 1 — Greeting */}
-      <div>
+    <div
+      className={cn(
+        "rounded-xl border border-border bg-surface p-5 md:p-6",
+        "grid gap-5 md:gap-6",
+        // 1 col (mobile) → 2 col (sm) → 2x2 grid (md) → 4 col (xl)
+        "grid-cols-1 sm:grid-cols-2 xl:grid-cols-[1.2fr_1fr_1fr_1fr]",
+      )}
+    >
+      {/* Col 1 — Greeting (spans full row on small, full row on md, single col xl) */}
+      <div className="min-w-0 sm:col-span-2 xl:col-span-1">
         <div className="font-mono text-[11px] uppercase tracking-wider text-ink-mute">
           Hoje · {weekdayLabel}
         </div>
-        <div className="mt-2 font-display text-[30px] font-bold leading-[1.1] text-ink tracking-tightest md:text-[34px]">
+        <div className="mt-2 font-display text-[28px] font-bold leading-[1.1] text-ink tracking-tightest md:text-[32px] xl:text-[34px]">
           {greeting},
           <br />
           <span>Luan</span>
         </div>
-        <div className="mt-3 max-w-[300px] text-[14px] leading-[1.45] text-ink-dim">
+        <div className="mt-3 max-w-[420px] text-[14px] leading-[1.45] text-ink-dim">
           {total === 0
             ? "Crie seu primeiro hábito para começar a rastrear."
             : pending === 0
@@ -80,14 +87,10 @@ export function Hero({
       </div>
 
       {/* Col 2 — Progress ring + completion */}
-      <div className="flex items-center gap-5 md:pl-3">
-        <ProgressRing
-          value={pct}
-          size={96}
-          stroke={7}
-        >
+      <div className="flex items-center gap-4 min-w-0 sm:col-span-2 xl:col-span-1 xl:pl-2">
+        <ProgressRing value={pct} size={88} stroke={7}>
           <div className="text-center leading-none">
-            <div className="font-display text-[22px] font-bold text-ink tracking-tighter">
+            <div className="font-display text-[20px] font-bold text-ink tracking-tighter">
               {pct}%
             </div>
             <div className="mt-1 font-mono text-[9px] uppercase tracking-wide text-ink-mute">
@@ -95,10 +98,10 @@ export function Hero({
             </div>
           </div>
         </ProgressRing>
-        <div>
-          <div className="font-display text-[36px] font-bold leading-none tracking-tightest text-ink">
+        <div className="min-w-0">
+          <div className="font-display text-[32px] font-bold leading-none tracking-tightest text-ink md:text-[34px] xl:text-[36px]">
             {done}
-            <span className="text-[20px] font-medium text-ink-mute">
+            <span className="text-[18px] font-medium text-ink-mute">
               {" "}/ {total}
             </span>
           </div>
@@ -109,28 +112,28 @@ export function Hero({
       </div>
 
       {/* Col 3 — Max streak */}
-      <div className="md:border-l md:border-border md:pl-6">
+      <div className="min-w-0 sm:border-t sm:border-border sm:pt-5 xl:border-l xl:border-t-0 xl:pl-6 xl:pt-0">
         <div className="font-mono text-[10px] uppercase tracking-wider text-ink-mute">
           Maior sequência
         </div>
         <div className="mt-2.5 flex items-baseline gap-1.5">
-          <div className="font-display text-[36px] font-bold leading-none tracking-tightest text-accent">
+          <div className="font-display text-[32px] font-bold leading-none tracking-tightest text-accent md:text-[34px] xl:text-[36px]">
             {maxStreak}
           </div>
           <div className="font-mono text-[13px] text-ink-dim">dias</div>
         </div>
-        <div className="mt-1.5 font-mono text-[10.5px] text-ink-dim">
+        <div className="mt-1.5 truncate font-mono text-[10.5px] text-ink-dim">
           {maxStreakHabit ? `${maxStreakHabit} · em andamento` : "—"}
         </div>
       </div>
 
       {/* Col 4 — This week */}
-      <div className="md:border-l md:border-border md:pl-6">
+      <div className="min-w-0 sm:border-t sm:border-border sm:pt-5 xl:border-l xl:border-t-0 xl:pl-6 xl:pt-0">
         <div className="font-mono text-[10px] uppercase tracking-wider text-ink-mute">
           Esta semana
         </div>
         <div className="mt-2.5 flex items-baseline gap-1.5">
-          <div className="font-display text-[36px] font-bold leading-none tracking-tightest text-ink">
+          <div className="font-display text-[32px] font-bold leading-none tracking-tightest text-ink md:text-[34px] xl:text-[36px]">
             {weekDone}
           </div>
           <div className="font-mono text-[13px] text-ink-dim">
@@ -144,7 +147,9 @@ export function Hero({
               className={cn(
                 "h-1 flex-1 rounded-pill",
                 c.completed ? "bg-accent" : "bg-surface-3",
-                c.isToday && !c.completed && "bg-surface-3 ring-1 ring-accent/30",
+                c.isToday &&
+                  !c.completed &&
+                  "bg-surface-3 ring-1 ring-accent/30",
               )}
             />
           ))}
