@@ -10,6 +10,8 @@ import { LevelBadge } from "@/components/LevelBadge";
 import { RecoveryDialog } from "@/components/RecoveryDialog";
 import { InAppBanner, type BannerTone } from "@/components/InAppBanner";
 import { IdentityProfileDialog } from "@/components/IdentityProfileDialog";
+import { CommunityFeed } from "@/components/CommunityFeed";
+import { AdminDashboard } from "@/components/AdminDashboard";
 import { HabitsManagementView } from "@/components/HabitsManagementView";
 import { AnalyticsView } from "@/components/AnalyticsView";
 import { CalendarView } from "@/components/CalendarView";
@@ -88,6 +90,8 @@ export default function App() {
   const [commandOpen, setCommandOpen] = useState(false);
   const [bjFoggOpen, setBjFoggOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [communityOpen, setCommunityOpen] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
   const [recovery, setRecovery] = useState<{
     habit: Habit;
     brokenStreak: number;
@@ -420,6 +424,20 @@ export default function App() {
           handler: () => setShortcutsOpen(!shortcutsOpen),
         },
         {
+          key: "A",
+          shift: true,
+          ctrl: true,
+          description: "Painel admin",
+          handler: () => setAdminOpen((o) => !o),
+        },
+        {
+          key: "A",
+          shift: true,
+          meta: true,
+          description: "Painel admin",
+          handler: () => setAdminOpen((o) => !o),
+        },
+        {
           key: " ",
           description: "Marcar hoje",
           handler: () => {
@@ -672,6 +690,10 @@ export default function App() {
         onExport={() => exportImportRef.current?.triggerExport()}
         onImport={() => exportImportRef.current?.triggerImport()}
         onGoToday={() => setView("today")}
+        onOpenCommunity={() => setCommunityOpen(true)}
+        onOpenAdmin={() => setAdminOpen(true)}
+        onOpenProfile={() => setProfileOpen(true)}
+        onOpenBjFogg={() => setBjFoggOpen(true)}
       />
 
       <HabitCreatorBJFogg
@@ -774,6 +796,19 @@ export default function App() {
         bundle={bundle}
         habits={activeHabits}
         totalXp={heroXpTotal}
+      />
+
+      <CommunityFeed
+        open={communityOpen}
+        onOpenChange={setCommunityOpen}
+        bundle={bundle}
+        habits={activeHabits}
+      />
+
+      <AdminDashboard
+        open={adminOpen}
+        onOpenChange={setAdminOpen}
+        bundle={bundle}
       />
 
       <XpBurstHost />

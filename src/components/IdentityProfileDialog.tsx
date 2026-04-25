@@ -20,6 +20,7 @@ import type { DbBundle } from "@/db/client";
 import { calculateCurrentStreak, calculateLongestStreak } from "@/lib/streak";
 import { ALL_DAYS_SCHEDULE } from "@/lib/schedule";
 import { todayKey } from "@/lib/date";
+import { getRecentXp } from "@/db/queries";
 
 /**
  * IdentityProfileDialog — reinforces who the user is becoming, not just
@@ -46,6 +47,27 @@ interface HabitStreak {
   longest: number;
 }
 
+interface DropEntry {
+  id: string;
+  amount: number;
+  createdAt: Date | string;
+  rarity: "common" | "rare" | "epic" | "unknown";
+}
+
+const DROP_AVATAR: Record<DropEntry["rarity"], string> = {
+  common: "✨",
+  rare: "💎",
+  epic: "👑",
+  unknown: "🎁",
+};
+
+const DROP_LABEL: Record<DropEntry["rarity"], string> = {
+  common: "Drop comum",
+  rare: "Drop raro",
+  epic: "Drop épico",
+  unknown: "Drop",
+};
+
 export function IdentityProfileDialog({
   open,
   onOpenChange,
@@ -59,6 +81,7 @@ export function IdentityProfileDialog({
 
   // Compute streaks per habit when the dialog opens
   const [streaks, setStreaks] = useState<HabitStreak[]>([]);
+  const [drops, setDrops] = useState<DropEntry[]>([]);
   useEffect(() => {
     if (!open || !bundle || habits.length === 0) return;
     let cancelled = false;
@@ -85,6 +108,34 @@ export function IdentityProfileDialog({
       cancelled = true;
     };
   }, [open, bundle, habits]);
+
+  // Load drop history (variable rewards) when dialog opens
+  useEffect(() => {
+    if (!open || !bundle) return;
+    let cancelled = false;
+    (async () => {
+      const rows = await getRecentXp(bundle.db, 100);
+      const dropRows = rows
+        .filter((r) => r.kind === "drop")
+        .map<DropEntry>((r) => {
+          const p = r.payload as { rarity?: string } | null;
+          const rarity =
+            p?.rarity === "common" || p?.rarity === "rare" || p?.rarity === "epic"
+              ? p.rarity
+              : "unknown";
+          return {
+            id: r.id,
+            amount: r.amount,
+            createdAt: r.createdAt,
+            rarity,
+          };
+        });
+      if (!cancelled) setDrops(dropRows);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, bundle]);
 
   // Pick the best streak for the identity sentence
   const champion = useMemo(() => {
@@ -250,6 +301,49 @@ export function IdentityProfileDialog({
             />
           </div>
         </div>
+
+        {/* Drop history — variable rewards received */}
+        {drops.length > 0 && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-wider text-ink-mute">
+              <span>Drops recebidos</span>
+              <span className="tabular-nums">
+                {drops.length} {drops.length === 1 ? "item" : "itens"}
+              </span>
+            </div>
+            <div className="grid grid-cols-1 gap-1.5 max-h-40 overflow-y-auto rounded-md border border-border bg-bg p-2">
+              {drops.slice(0, 12).map((d) => (
+                <div
+                  key={d.id}
+                  className={cn(
+                    "flex items-center gap-2.5 rounded-sm px-2 py-1.5",
+                    d.rarity === "epic" && "bg-accent/5",
+                  )}
+                >
+                  <div className="grid h-7 w-7 shrink-0 place-items-center rounded-sm bg-surface-2 text-base">
+                    {DROP_AVATAR[d.rarity]}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-display text-[12px] font-semibold tracking-tighter text-ink">
+                      {DROP_LABEL[d.rarity]}
+                    </div>
+                    <div className="font-mono text-[9.5px] text-ink-mute">
+                      {new Date(d.createdAt).toLocaleString("pt-BR", {
+                        month: "short",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </div>
+                  </div>
+                  <div className="font-mono text-[11px] font-semibold tabular-nums text-accent">
+                    +{d.amount} XP
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Footer note */}
         {totalChecks > 0 && (

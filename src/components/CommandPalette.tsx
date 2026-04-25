@@ -2,15 +2,19 @@ import { useEffect } from "react";
 import {
   Archive,
   ArchiveRestore,
+  Compass,
   Download,
+  Gauge,
   Home,
   Keyboard,
   Moon,
   Pause,
   Play,
   Plus,
+  Sparkles,
   Sun,
   Upload,
+  User,
 } from "lucide-react";
 import {
   CommandDialog,
@@ -42,6 +46,10 @@ interface Props {
   theme: "light" | "dark";
   showArchived: boolean;
   onGoToday: () => void;
+  onOpenCommunity?: () => void;
+  onOpenAdmin?: () => void;
+  onOpenProfile?: () => void;
+  onOpenBjFogg?: () => void;
 }
 
 export function CommandPalette({
@@ -62,6 +70,10 @@ export function CommandPalette({
   theme,
   showArchived,
   onGoToday,
+  onOpenCommunity,
+  onOpenAdmin,
+  onOpenProfile,
+  onOpenBjFogg,
 }: Props) {
   useEffect(() => {
     function down(e: KeyboardEvent) {
@@ -116,6 +128,35 @@ export function CommandPalette({
             <CommandShortcut>?</CommandShortcut>
           </CommandItem>
         </CommandGroup>
+        {(onOpenCommunity || onOpenAdmin || onOpenProfile || onOpenBjFogg) && (
+          <CommandGroup heading="Descobrir">
+            {onOpenProfile && (
+              <CommandItem onSelect={run(onOpenProfile)}>
+                <User />
+                Seu perfil
+              </CommandItem>
+            )}
+            {onOpenCommunity && (
+              <CommandItem onSelect={run(onOpenCommunity)}>
+                <Compass />
+                Comunidade
+              </CommandItem>
+            )}
+            {onOpenBjFogg && (
+              <CommandItem onSelect={run(onOpenBjFogg)}>
+                <Sparkles />
+                Criar hábito guiado (BJ Fogg)
+              </CommandItem>
+            )}
+            {onOpenAdmin && (
+              <CommandItem onSelect={run(onOpenAdmin)}>
+                <Gauge />
+                Painel admin
+                <CommandShortcut>⌃⇧A</CommandShortcut>
+              </CommandItem>
+            )}
+          </CommandGroup>
+        )}
         <CommandGroup heading="Dados">
           <CommandItem onSelect={run(onExport)}>
             <Download />
