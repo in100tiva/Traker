@@ -13,7 +13,7 @@ interface Props {
   entries: HeatmapEntry[];
   selected: boolean;
   onSelect: () => void;
-  onToggle: () => void;
+  onToggle: (sourceEl: Element | null) => void;
 }
 
 export function HabitGridCard({
@@ -60,7 +60,7 @@ export function HabitGridCard({
           onClick={(e) => {
             e.stopPropagation();
             haptics.tap();
-            onToggle();
+            onToggle(e.currentTarget);
           }}
           className={cn(
             "grid h-8 w-8 shrink-0 place-items-center rounded-full border transition-all",

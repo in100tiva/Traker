@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { HabitForm, type HabitFormInput } from "@/components/HabitForm";
+import { HabitCreatorBJFogg } from "@/components/HabitCreatorBJFogg";
 import { ExportImport } from "@/components/ExportImport";
 import { Reminders } from "@/components/Reminders";
 import { TodayView } from "@/components/TodayView";
-import { Onboarding } from "@/components/Onboarding";
+import { OnboardingFlow } from "@/components/OnboardingFlow";
+import { XpBurstHost } from "@/components/XpBurst";
+import { LevelBadge } from "@/components/LevelBadge";
 import { HabitsManagementView } from "@/components/HabitsManagementView";
 import { AnalyticsView } from "@/components/AnalyticsView";
 import { CalendarView } from "@/components/CalendarView";
@@ -25,11 +28,28 @@ import { useHotkeys } from "@/hooks/useHotkeys";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useUIStore } from "@/store/useUIStore";
 import { toDateKey } from "@/lib/date";
-import { toggleCompletion, eventsCount, recordEvent, recordXp } from "@/db/queries";
+import {
+  toggleCompletion,
+  eventsCount,
+  recordEvent,
+  recordXp,
+  getXpTotal,
+  createHabit,
+} from "@/db/queries";
 import { haptics } from "@/lib/haptics";
 import { bootstrap, trackActivationOnFirstCheck } from "@/lib/bootstrap";
-import { xpForCheck } from "@/lib/gamification";
+import {
+  xpForCheck,
+  xpForMilestone,
+  MILESTONE_GRANT,
+} from "@/lib/gamification";
+import { ALL_DAYS_SCHEDULE } from "@/lib/schedule";
+import { calculateCurrentStreak } from "@/lib/streak";
+import { maybeDrop, type DropContext } from "@/lib/random-rewards";
+import { fireXpBurst } from "@/components/XpBurst";
+import { celebrateMilestone } from "@/lib/milestones";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import type { DateKey } from "@/lib/date";
 
 export default function App() {
@@ -58,6 +78,7 @@ export default function App() {
   const isTablet = useMediaQuery("(min-width: 760px) and (max-width: 1099px)");
 
   const [commandOpen, setCommandOpen] = useState(false);
+  const [bjFoggOpen, setBjFoggOpen] = useState(false);
 
   const {
     habits,
@@ -110,31 +131,126 @@ export default function App() {
     void bootstrap(bundle);
   }, [bundle]);
 
-  const handleToggleAny = useCallback(
-    async (habitId: string, date: Date) => {
-      if (!bundle) return;
-      const result = await toggleCompletion(bundle.db, habitId, toDateKey(date));
-      if (result === "created") {
-        // Track event + grant XP. Streak-aware XP requires a fresh streak
-        // count which we don't have at hand here; pass 0 → caller granular
-        // version (Fase 2) will pass the real streak.
-        const isFirstEverCheck =
-          (await eventsCount(bundle.db, "habit_check")) === 0;
-        await recordEvent(bundle.db, {
-          type: "habit_check",
-          payload: { habitId },
-        });
-        await recordXp(bundle.db, {
-          amount: xpForCheck(0),
-          kind: "habit_check",
-          habitId,
-        });
-        if (isFirstEverCheck) {
-          await trackActivationOnFirstCheck(bundle);
-        }
-      }
+  /**
+   * Compute the streak count for a habit before the current toggle.
+   * Used to size the XP grant and to detect milestone crossings.
+   */
+  const computeStreakBefore = useCallback(
+    async (habitId: string, beforeKey: DateKey, schedule: number) => {
+      if (!bundle) return 0;
+      const { rows } = await bundle.pg.query<{ date: string }>(
+        `SELECT date::text AS date FROM completions
+           WHERE habit_id = $1 AND date < $2
+           ORDER BY date DESC LIMIT 500`,
+        [habitId, beforeKey],
+      );
+      const dates = rows.map((r) => r.date);
+      // Pretend "today" was beforeKey to use the existing streak helper
+      const yesterday = new Date(beforeKey + "T00:00:00");
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayKey = toDateKey(yesterday);
+      return calculateCurrentStreak(dates, yesterdayKey, schedule);
     },
     [bundle],
+  );
+
+  const [heroXpTotal, setHeroXpTotal] = useState(0);
+  useEffect(() => {
+    if (!bundle) return;
+    void getXpTotal(bundle.db).then(setHeroXpTotal);
+  }, [bundle]);
+
+  const handleToggleAny = useCallback(
+    async (habitId: string, date: Date, sourceEl?: Element | null) => {
+      if (!bundle) return;
+      const habit = habits.find((h) => h.id === habitId);
+      if (!habit) return;
+      const dateKey = toDateKey(date);
+      const result = await toggleCompletion(bundle.db, habitId, dateKey);
+
+      if (result !== "created") return;
+
+      const schedule = habit.schedule ?? ALL_DAYS_SCHEDULE;
+      const streakBefore = await computeStreakBefore(habitId, dateKey, schedule);
+      const newStreak = streakBefore + 1;
+
+      const baseXp = xpForCheck(streakBefore);
+      await recordEvent(bundle.db, {
+        type: "habit_check",
+        payload: { habitId, streak: newStreak },
+      });
+      await recordXp(bundle.db, {
+        amount: baseXp,
+        kind: "habit_check",
+        habitId,
+        payload: { streak: newStreak },
+      });
+      fireXpBurst(baseXp, sourceEl);
+      haptics.tap();
+
+      // First check ever → record activation
+      const totalChecks = await eventsCount(bundle.db, "habit_check");
+      if (totalChecks === 1) {
+        await trackActivationOnFirstCheck(bundle);
+      }
+
+      // Milestone reached?
+      const milestoneXp = xpForMilestone(newStreak);
+      if (milestoneXp > 0 && MILESTONE_GRANT[newStreak] !== undefined) {
+        await recordXp(bundle.db, {
+          amount: milestoneXp,
+          kind: "milestone",
+          habitId,
+          payload: { streak: newStreak },
+        });
+        celebrateMilestone(newStreak, habit.name);
+      }
+
+      // Variable reward — rare and pleasant
+      const lastDropEvent = await bundle.pg.query<{ created_at: string }>(
+        `SELECT created_at FROM events WHERE type = 'drop_grant' ORDER BY created_at DESC LIMIT 1`,
+      );
+      const checksSinceLastDrop = await bundle.pg.query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count FROM events
+           WHERE type = 'habit_check' AND created_at > COALESCE(
+             (SELECT created_at FROM events WHERE type='drop_grant' ORDER BY created_at DESC LIMIT 1),
+             '1970-01-01'
+           )`,
+      );
+      const dropCtx: DropContext = {
+        checksSinceLastDrop: Number(
+          checksSinceLastDrop.rows[0]?.count ?? "0",
+        ),
+        hoursSinceLastDrop: lastDropEvent.rows[0]
+          ? (Date.now() -
+              new Date(lastDropEvent.rows[0].created_at).getTime()) /
+            3_600_000
+          : 9999,
+      };
+      const drop = maybeDrop(dropCtx);
+      if (drop) {
+        await recordEvent(bundle.db, {
+          type: "drop_grant",
+          payload: { rarity: drop.rarity, dropId: drop.id, bonusXp: drop.bonusXp },
+        });
+        await recordXp(bundle.db, {
+          amount: drop.bonusXp,
+          kind: "drop",
+          habitId,
+          payload: { rarity: drop.rarity, dropId: drop.id },
+        });
+        toast.success(`${drop.emoji} ${drop.message}`, {
+          description: `+${drop.bonusXp} XP bônus`,
+          duration: 5000,
+        });
+        fireXpBurst(drop.bonusXp);
+      }
+
+      // Refresh hero XP cache
+      const total = await getXpTotal(bundle.db);
+      setHeroXpTotal(total);
+    },
+    [bundle, habits, computeStreakBefore],
   );
 
   const [heroStreak, setHeroStreak] = useState({ current: 0, record: 0 });
@@ -183,13 +299,6 @@ export default function App() {
     [update],
   );
 
-  const handleOnboardingCreate = useCallback(
-    async (inputs: HabitFormInput[]) => {
-      for (const input of inputs) await create(input);
-      await updateSettings({ onboardingDone: true });
-    },
-    [create, updateSettings],
-  );
 
   const handleCellClick = useCallback((date: Date) => {
     setNoteDate(toDateKey(date));
@@ -282,6 +391,9 @@ export default function App() {
 
   const topbarActions = (
     <>
+      {!isMobile && (
+        <LevelBadge totalXp={heroXpTotal} compact className="mr-1" />
+      )}
       {!isMobile && <Reminders pendingCount={0} />}
       <ExportImport bundle={bundle} ref={exportImportRef} />
       {!isMobile && (
@@ -450,13 +562,60 @@ export default function App() {
         onGoToday={() => setView("today")}
       />
 
+      <HabitCreatorBJFogg
+        open={bjFoggOpen}
+        onOpenChange={setBjFoggOpen}
+        anchorOptions={activeHabits.map((h) => ({
+          id: h.id,
+          name: h.name,
+          emoji: h.emoji,
+        }))}
+        onCreate={async (input) => {
+          if (!bundle) return;
+          await createHabit(bundle.db, input);
+          await recordEvent(bundle.db, {
+            type: "habit_create",
+            payload: { method: "bj_fogg", triggerType: input.triggerType },
+          });
+          toast.success("Hábito guiado criado", {
+            description: "Gatilho + ação mínima + recompensa pronta.",
+          });
+        }}
+      />
+
       {showOnboarding && (
-        <Onboarding
+        <OnboardingFlow
           open={showOnboarding}
-          onCreate={handleOnboardingCreate}
-          onSkip={() => updateSettings({ onboardingDone: true })}
+          onSkip={async () => {
+            await updateSettings({ onboardingDone: true });
+            if (bundle) {
+              await recordEvent(bundle.db, {
+                type: "onboarding_skipped",
+              });
+            }
+          }}
+          onComplete={async ({ name, declaredGoal, habit }) => {
+            await create(habit);
+            await updateSettings({ onboardingDone: true });
+            if (bundle) {
+              await recordEvent(bundle.db, {
+                type: "onboarding_completed",
+                payload: { declaredGoal },
+              });
+              await recordXp(bundle.db, {
+                amount: 25,
+                kind: "onboarding",
+                payload: { declaredGoal },
+              });
+            }
+            toast.success(
+              `Bem-vindo, ${name}! +25 XP de boas-vindas.`,
+            );
+          }}
         />
       )}
+
+      <XpBurstHost />
     </div>
   );
 }
