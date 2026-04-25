@@ -26,6 +26,8 @@ interface HabitRow {
   tag: string | null;
   schedule: number;
   sort_order: number;
+  trigger_type: string | null;
+  trigger_value: unknown;
   paused_at: string | null;
   archived_at: string | null;
   created_at: string;
@@ -45,6 +47,8 @@ function toHabit(r: HabitRow): Habit {
     tag: r.tag,
     schedule: r.schedule,
     sortOrder: r.sort_order,
+    triggerType: r.trigger_type,
+    triggerValue: r.trigger_value,
     pausedAt: r.paused_at ? new Date(r.paused_at) : null,
     archivedAt: r.archived_at ? new Date(r.archived_at) : null,
     createdAt: new Date(r.created_at),
