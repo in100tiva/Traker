@@ -27,7 +27,11 @@ interface Props {
   detailWeekly: WeeklyCount[];
   retroactiveLimitDays: number;
   onSelectHabit: (id: string) => void;
-  onToggleAny: (habitId: string, date: Date) => Promise<void>;
+  onToggleAny: (
+    habitId: string,
+    date: Date,
+    sourceEl?: Element | null,
+  ) => Promise<void>;
   onToggleDetailToday: () => void;
   onIncrementDetailToday: (delta: number) => void;
   onEditDetail: () => void;
@@ -318,8 +322,8 @@ export function TodayView({
                   }))}
                   selected={selected?.id === h.id}
                   onSelect={() => onSelectHabit(h.id)}
-                  onToggle={async () => {
-                    await onToggleAny(h.id, new Date());
+                  onToggle={async (sourceEl) => {
+                    await onToggleAny(h.id, new Date(), sourceEl);
                     await refreshTodayMap();
                   }}
                 />
