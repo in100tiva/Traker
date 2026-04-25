@@ -66,6 +66,8 @@ export async function createHabit(
     isNegative?: boolean;
     tag?: string | null;
     schedule?: number;
+    triggerType?: string | null;
+    triggerValue?: unknown;
   },
 ): Promise<Habit> {
   const [{ maxOrder }] = await db
@@ -84,6 +86,11 @@ export async function createHabit(
       isNegative: input.isNegative ?? false,
       tag: input.tag ?? null,
       schedule: input.schedule ?? 127,
+      triggerType: input.triggerType ?? null,
+      triggerValue:
+        input.triggerValue === undefined
+          ? null
+          : (input.triggerValue as object | null),
       sortOrder: Number(maxOrder) + 1,
     })
     .returning();
@@ -104,9 +111,20 @@ export async function updateHabit(
     isNegative: boolean;
     tag: string | null;
     schedule: number;
+    triggerType: string | null;
+    triggerValue: unknown;
   }>,
 ): Promise<void> {
-  await db.update(habits).set(patch).where(eq(habits.id, habitId));
+  await db
+    .update(habits)
+    .set({
+      ...patch,
+      triggerValue:
+        patch.triggerValue === undefined
+          ? undefined
+          : (patch.triggerValue as object | null),
+    })
+    .where(eq(habits.id, habitId));
 }
 
 export async function archiveHabit(db: DB, habitId: string): Promise<void> {

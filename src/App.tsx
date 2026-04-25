@@ -7,6 +7,9 @@ import { TodayView } from "@/components/TodayView";
 import { OnboardingFlow } from "@/components/OnboardingFlow";
 import { XpBurstHost } from "@/components/XpBurst";
 import { LevelBadge } from "@/components/LevelBadge";
+import { RecoveryDialog } from "@/components/RecoveryDialog";
+import { InAppBanner, type BannerTone } from "@/components/InAppBanner";
+import { IdentityProfileDialog } from "@/components/IdentityProfileDialog";
 import { HabitsManagementView } from "@/components/HabitsManagementView";
 import { AnalyticsView } from "@/components/AnalyticsView";
 import { CalendarView } from "@/components/CalendarView";
@@ -43,14 +46,19 @@ import {
   xpForMilestone,
   MILESTONE_GRANT,
 } from "@/lib/gamification";
-import { ALL_DAYS_SCHEDULE } from "@/lib/schedule";
+import { ALL_DAYS_SCHEDULE, isScheduledOn } from "@/lib/schedule";
 import { calculateCurrentStreak } from "@/lib/streak";
 import { maybeDrop, type DropContext } from "@/lib/random-rewards";
+import { reEngagementCopyFor } from "@/lib/notifications-engine";
+import { quotaFor, FREE_TIER_QUOTA } from "@/lib/streak-freeze";
+import { monthKey } from "@/lib/timezone";
+import { recordFreeze, freezesUsedInMonth } from "@/db/queries";
 import { fireXpBurst } from "@/components/XpBurst";
 import { celebrateMilestone } from "@/lib/milestones";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { DateKey } from "@/lib/date";
+import type { Habit } from "@/db/schema";
 
 export default function App() {
   const bundle = useDb();
@@ -79,6 +87,17 @@ export default function App() {
 
   const [commandOpen, setCommandOpen] = useState(false);
   const [bjFoggOpen, setBjFoggOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [recovery, setRecovery] = useState<{
+    habit: Habit;
+    brokenStreak: number;
+  } | null>(null);
+  const [reEngageBanner, setReEngageBanner] = useState<{
+    tone: BannerTone;
+    title: string;
+    body: string;
+  } | null>(null);
+  const [freezeRemaining, setFreezeRemaining] = useState(FREE_TIER_QUOTA);
 
   const {
     habits,
@@ -125,11 +144,83 @@ export default function App() {
     [noteDate, completions],
   );
 
-  // Bootstrap: install_id, timezone, app_open, re-engagement detection
+  // Bootstrap: install_id, timezone, app_open, re-engagement detection.
+  // If the user is returning after >= 2 days, surface an empathetic banner.
   useEffect(() => {
     if (!bundle) return;
-    void bootstrap(bundle);
+    let cancelled = false;
+    bootstrap(bundle).then(({ daysAway }) => {
+      if (cancelled) return;
+      const copy = reEngagementCopyFor(daysAway);
+      if (copy) {
+        setReEngageBanner({
+          tone: copy.tone,
+          title: copy.title,
+          body: copy.body,
+        });
+      }
+    });
+    // Initial freeze quota — used by the recovery dialog and reminders UI
+    freezesUsedInMonth(bundle.db, monthKey()).then((used) => {
+      if (cancelled) return;
+      setFreezeRemaining(quotaFor("free", monthKey(), used).remaining);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [bundle]);
+
+  /**
+   * Detect a recently-broken streak when the app opens. We pick the habit
+   * with the largest broken streak ≥ 3 and offer recovery once per day.
+   */
+  useEffect(() => {
+    if (!bundle || habits.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const todayD = new Date();
+      const yesterday = new Date(todayD);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yKey = toDateKey(yesterday);
+      const tKey = toDateKey(todayD);
+
+      let candidate: { habit: Habit; brokenStreak: number } | null = null;
+
+      for (const h of habits) {
+        if (h.archivedAt || h.pausedAt) continue;
+        const sch = h.schedule ?? ALL_DAYS_SCHEDULE;
+        // Only break checks where yesterday was a scheduled day
+        if (!isScheduledOn(sch, yesterday)) continue;
+        const { rows } = await bundle.pg.query<{ date: string }>(
+          `SELECT date::text AS date FROM completions
+             WHERE habit_id = $1 ORDER BY date ASC LIMIT 2000`,
+          [h.id],
+        );
+        const dates = rows.map((r) => r.date);
+        const yesterdayMarked = dates.includes(yKey);
+        const todayMarked = dates.includes(tKey);
+        if (yesterdayMarked || todayMarked) continue;
+        // streak that "ended" — compute as if today was 2 days ago
+        const before = new Date(yesterday);
+        before.setDate(before.getDate() - 1);
+        const beforeKey = toDateKey(before);
+        const broken = calculateCurrentStreak(dates, beforeKey, sch);
+        if (broken >= 3 && (!candidate || broken > candidate.brokenStreak)) {
+          candidate = { habit: h, brokenStreak: broken };
+        }
+      }
+      if (!cancelled && candidate) {
+        // Throttle: only show once per local day
+        const lastShown = window.localStorage.getItem("traker.recovery.shownAt");
+        if (lastShown === tKey) return;
+        window.localStorage.setItem("traker.recovery.shownAt", tKey);
+        setRecovery(candidate);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [bundle, habits]);
 
   /**
    * Compute the streak count for a habit before the current toggle.
@@ -392,7 +483,14 @@ export default function App() {
   const topbarActions = (
     <>
       {!isMobile && (
-        <LevelBadge totalXp={heroXpTotal} compact className="mr-1" />
+        <button
+          type="button"
+          onClick={() => setProfileOpen(true)}
+          className="rounded-pill outline-none transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-accent"
+          aria-label="Abrir perfil"
+        >
+          <LevelBadge totalXp={heroXpTotal} compact className="mr-1" />
+        </button>
       )}
       {!isMobile && <Reminders pendingCount={0} />}
       <ExportImport bundle={bundle} ref={exportImportRef} />
@@ -447,7 +545,21 @@ export default function App() {
         />
 
         <section className="flex-1">
-          <div className="mx-auto w-full max-w-[1320px] px-4 py-5 md:px-6 md:py-6 lg:px-7">
+          <div className="mx-auto flex w-full max-w-[1320px] flex-col gap-4 px-4 py-5 md:px-6 md:py-6 lg:px-7">
+            {reEngageBanner && (
+              <InAppBanner
+                tone={reEngageBanner.tone}
+                title={reEngageBanner.title}
+                body={reEngageBanner.body}
+                ctaLabel="Marcar algo agora"
+                onCta={() => {
+                  setView("today");
+                  setReEngageBanner(null);
+                }}
+                onDismiss={() => setReEngageBanner(null)}
+                dismissKey="traker.banner.reengage"
+              />
+            )}
             {activeView === "today" && (
               <TodayView
                 bundle={bundle}
@@ -614,6 +726,55 @@ export default function App() {
           }}
         />
       )}
+
+      {recovery && (
+        <RecoveryDialog
+          open
+          habit={recovery.habit}
+          brokenStreak={recovery.brokenStreak}
+          freezesRemaining={freezeRemaining}
+          onClose={() => setRecovery(null)}
+          onResetWithoutGuilt={() => {
+            setRecovery(null);
+            toast("Recomeço sem culpa", {
+              description: "Marca hoje pra começar uma nova sequência.",
+            });
+          }}
+          onUseFreeze={async () => {
+            if (!bundle) return;
+            await recordFreeze(bundle.db, {
+              monthKey: monthKey(),
+              habitId: recovery.habit.id,
+              reason: "streak_break",
+            });
+            await recordEvent(bundle.db, {
+              type: "freeze_used",
+              payload: {
+                habitId: recovery.habit.id,
+                brokenStreak: recovery.brokenStreak,
+              },
+            });
+            // Mark yesterday so the streak is preserved
+            const y = new Date();
+            y.setDate(y.getDate() - 1);
+            await toggleCompletion(bundle.db, recovery.habit.id, toDateKey(y));
+            const used = await freezesUsedInMonth(bundle.db, monthKey());
+            setFreezeRemaining(quotaFor("free", monthKey(), used).remaining);
+            setRecovery(null);
+            toast.success("Sequência protegida 💜", {
+              description: `${recovery.habit.name} segue intacto.`,
+            });
+          }}
+        />
+      )}
+
+      <IdentityProfileDialog
+        open={profileOpen}
+        onOpenChange={setProfileOpen}
+        bundle={bundle}
+        habits={activeHabits}
+        totalXp={heroXpTotal}
+      />
 
       <XpBurstHost />
     </div>

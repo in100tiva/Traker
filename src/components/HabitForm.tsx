@@ -68,6 +68,8 @@ export interface HabitFormInput {
   isNegative?: boolean;
   tag?: string | null;
   schedule?: number;
+  triggerType?: string | null;
+  triggerValue?: unknown;
 }
 
 interface Props {
