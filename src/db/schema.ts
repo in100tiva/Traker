@@ -27,6 +27,8 @@ export const habits = pgTable("habits", {
   tag: text("tag"),
   schedule: smallint("schedule").notNull().default(127),
   sortOrder: integer("sort_order").notNull().default(0),
+  triggerType: text("trigger_type"),
+  triggerValue: jsonb("trigger_value"),
   pausedAt: timestamp("paused_at", { withTimezone: true }),
   archivedAt: timestamp("archived_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
@@ -63,8 +65,54 @@ export const settings = pgTable("settings", {
     .default(sql`now()`),
 });
 
+export const xpLog = pgTable("xp_log", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  habitId: uuid("habit_id").references(() => habits.id, {
+    onDelete: "set null",
+  }),
+  amount: integer("amount").notNull(),
+  kind: text("kind").notNull(),
+  payload: jsonb("payload"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .default(sql`now()`),
+});
+
+export const events = pgTable("events", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  type: text("type").notNull(),
+  payload: jsonb("payload"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .default(sql`now()`),
+});
+
+export const freezes = pgTable("freezes", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  usedAt: timestamp("used_at", { withTimezone: true })
+    .notNull()
+    .default(sql`now()`),
+  monthKey: text("month_key").notNull(),
+  habitId: uuid("habit_id").references(() => habits.id, {
+    onDelete: "set null",
+  }),
+  reason: text("reason"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .default(sql`now()`),
+});
+
 export type Habit = typeof habits.$inferSelect;
 export type NewHabit = typeof habits.$inferInsert;
 export type Completion = typeof completions.$inferSelect;
 export type NewCompletion = typeof completions.$inferInsert;
 export type Setting = typeof settings.$inferSelect;
+export type XpLog = typeof xpLog.$inferSelect;
+export type AppEvent = typeof events.$inferSelect;
+export type Freeze = typeof freezes.$inferSelect;

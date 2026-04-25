@@ -12,9 +12,15 @@ import {
 import type { DB } from "./client";
 import {
   completions,
+  events,
+  freezes,
   habits,
   settings,
+  xpLog,
+  type AppEvent,
+  type Freeze,
   type Habit,
+  type XpLog,
 } from "./schema";
 import type { DateKey } from "@/lib/date";
 
@@ -554,4 +560,141 @@ export async function importAll(
       await setSetting(db, s.key, s.value);
     }
   }
+}
+
+// =============================================================================
+// PHASE 1 — Gamification, freezes, events, xp.
+// =============================================================================
+
+// ---------------------------------- XP --------------------------------------
+
+export type XpKind =
+  | "habit_check"
+  | "streak_bonus"
+  | "drop"
+  | "milestone"
+  | "freeze_grant"
+  | "onboarding";
+
+export interface RecordXpInput {
+  amount: number;
+  kind: XpKind;
+  habitId?: string | null;
+  payload?: Record<string, unknown> | null;
+}
+
+export async function recordXp(
+  db: DB,
+  input: RecordXpInput,
+): Promise<XpLog> {
+  const [row] = await db
+    .insert(xpLog)
+    .values({
+      habitId: input.habitId ?? null,
+      amount: input.amount,
+      kind: input.kind,
+      payload: input.payload ?? null,
+    })
+    .returning();
+  return row;
+}
+
+export async function getXpTotal(db: DB): Promise<number> {
+  const [row] = await db
+    .select({ total: sql<number>`coalesce(sum(amount), 0)::int` })
+    .from(xpLog);
+  return Number(row?.total ?? 0);
+}
+
+export async function getRecentXp(
+  db: DB,
+  limit = 50,
+): Promise<XpLog[]> {
+  return db.select().from(xpLog).orderBy(desc(xpLog.createdAt)).limit(limit);
+}
+
+// ---------------------------------- Events ---------------------------------
+
+export interface RecordEventInput {
+  type: string;
+  payload?: Record<string, unknown> | null;
+}
+
+export async function recordEvent(
+  db: DB,
+  input: RecordEventInput,
+): Promise<AppEvent> {
+  const [row] = await db
+    .insert(events)
+    .values({ type: input.type, payload: input.payload ?? null })
+    .returning();
+  return row;
+}
+
+export async function listEvents(
+  db: DB,
+  limit = 1000,
+): Promise<AppEvent[]> {
+  return db
+    .select()
+    .from(events)
+    .orderBy(desc(events.createdAt))
+    .limit(limit);
+}
+
+export async function findFirstEvent(
+  db: DB,
+  type: string,
+): Promise<AppEvent | null> {
+  const [row] = await db
+    .select()
+    .from(events)
+    .where(eq(events.type, type))
+    .orderBy(asc(events.createdAt))
+    .limit(1);
+  return row ?? null;
+}
+
+export async function eventsCount(db: DB, type?: string): Promise<number> {
+  const query = db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(events);
+  const rows = type ? await query.where(eq(events.type, type)) : await query;
+  return Number(rows[0]?.count ?? 0);
+}
+
+// ---------------------------------- Freezes ---------------------------------
+
+export async function recordFreeze(
+  db: DB,
+  args: { monthKey: string; habitId?: string | null; reason?: string | null },
+): Promise<Freeze> {
+  const [row] = await db
+    .insert(freezes)
+    .values({
+      monthKey: args.monthKey,
+      habitId: args.habitId ?? null,
+      reason: args.reason ?? null,
+    })
+    .returning();
+  return row;
+}
+
+export async function freezesUsedInMonth(
+  db: DB,
+  monthKey: string,
+): Promise<number> {
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(freezes)
+    .where(eq(freezes.monthKey, monthKey));
+  return Number(row?.count ?? 0);
+}
+
+export async function listFreezes(db: DB, limit = 50): Promise<Freeze[]> {
+  return db
+    .select()
+    .from(freezes)
+    .orderBy(desc(freezes.usedAt))
+    .limit(limit);
 }

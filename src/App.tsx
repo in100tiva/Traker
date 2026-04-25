@@ -25,8 +25,10 @@ import { useHotkeys } from "@/hooks/useHotkeys";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useUIStore } from "@/store/useUIStore";
 import { toDateKey } from "@/lib/date";
-import { toggleCompletion } from "@/db/queries";
+import { toggleCompletion, eventsCount, recordEvent, recordXp } from "@/db/queries";
 import { haptics } from "@/lib/haptics";
+import { bootstrap, trackActivationOnFirstCheck } from "@/lib/bootstrap";
+import { xpForCheck } from "@/lib/gamification";
 import { cn } from "@/lib/utils";
 import type { DateKey } from "@/lib/date";
 
@@ -102,10 +104,35 @@ export default function App() {
     [noteDate, completions],
   );
 
+  // Bootstrap: install_id, timezone, app_open, re-engagement detection
+  useEffect(() => {
+    if (!bundle) return;
+    void bootstrap(bundle);
+  }, [bundle]);
+
   const handleToggleAny = useCallback(
     async (habitId: string, date: Date) => {
       if (!bundle) return;
-      await toggleCompletion(bundle.db, habitId, toDateKey(date));
+      const result = await toggleCompletion(bundle.db, habitId, toDateKey(date));
+      if (result === "created") {
+        // Track event + grant XP. Streak-aware XP requires a fresh streak
+        // count which we don't have at hand here; pass 0 → caller granular
+        // version (Fase 2) will pass the real streak.
+        const isFirstEverCheck =
+          (await eventsCount(bundle.db, "habit_check")) === 0;
+        await recordEvent(bundle.db, {
+          type: "habit_check",
+          payload: { habitId },
+        });
+        await recordXp(bundle.db, {
+          amount: xpForCheck(0),
+          kind: "habit_check",
+          habitId,
+        });
+        if (isFirstEverCheck) {
+          await trackActivationOnFirstCheck(bundle);
+        }
+      }
     },
     [bundle],
   );
