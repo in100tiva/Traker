@@ -9,10 +9,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { HIcon } from "./icons/HIcon";
+import { LevelAvatar } from "./LevelAvatar";
 import { cn } from "@/lib/utils";
 import {
+  LEVEL_THRESHOLDS,
   avatarForLevel,
   levelFromXp,
+  nextAvatarTier,
+  nextTitleForLevel,
   titleForLevel,
 } from "@/lib/gamification";
 import type { Habit } from "@/db/schema";
@@ -147,10 +151,18 @@ export function IdentityProfileDialog({
     return best;
   }, [streaks]);
 
-  // Past avatar — three levels behind, capped at 1 → contrast
-  const pastLevel = Math.max(1, info.level - 5);
-  const pastAvatar = avatarForLevel(pastLevel);
-  const pastTitle = titleForLevel(pastLevel);
+  // Next tier — preview of what you're working toward.
+  const nextTier = useMemo(() => nextAvatarTier(info.level), [info.level]);
+  const nextTitle = useMemo(
+    () => nextTitleForLevel(info.level),
+    [info.level],
+  );
+  // XP gap from current total to the floor of the next tier (not next level).
+  const xpToNextTier = useMemo(() => {
+    if (!nextTier) return 0;
+    const tierFloorXp = LEVEL_THRESHOLDS[nextTier.minLevel - 1] ?? 0;
+    return Math.max(0, tierFloorXp - totalXp);
+  }, [nextTier, totalXp]);
 
   const totalChecks = useMemo(
     () => streaks.reduce((s, x) => s + (x.longest > 0 ? x.longest : 0), 0),
@@ -173,14 +185,8 @@ export function IdentityProfileDialog({
             initial={{ scale: 0.7, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ type: "spring", stiffness: 200 }}
-            className="grid h-24 w-24 place-items-center rounded-2xl text-5xl"
-            style={{
-              background: `${avatar.color}1f`,
-              border: `2px solid ${avatar.color}`,
-              boxShadow: `0 0 40px ${avatar.color}40`,
-            }}
           >
-            {avatar.emoji}
+            <LevelAvatar tier={avatar} size={96} />
           </motion.div>
 
           <div className="mt-4 font-mono text-[10px] font-semibold uppercase tracking-wider text-ink-mute">
@@ -216,24 +222,14 @@ export function IdentityProfileDialog({
           </div>
         )}
 
-        {/* Past vs present comparison */}
+        {/* Hoje vs próximo tier */}
         <div className="space-y-2">
           <div className="font-mono text-[10px] uppercase tracking-wider text-ink-mute">
-            Você está virando outra pessoa
+            {nextTier
+              ? "Você está virando outra pessoa"
+              : "Você atingiu o tier final"}
           </div>
           <div className="grid grid-cols-2 gap-2.5">
-            <div
-              className="flex flex-col items-center rounded-md border border-border bg-surface-2 p-4"
-              style={{ opacity: 0.6, filter: "saturate(0.4)" }}
-            >
-              <div className="text-[44px] grayscale">
-                {pastAvatar.emoji}
-              </div>
-              <div className="mt-2 font-mono text-[9px] uppercase tracking-wider text-ink-mute">
-                Antes (Nv. {pastLevel})
-              </div>
-              <div className="mt-0.5 text-[11px] text-ink-dim">{pastTitle}</div>
-            </div>
             <div
               className="flex flex-col items-center rounded-md border p-4"
               style={{
@@ -241,7 +237,7 @@ export function IdentityProfileDialog({
                 borderColor: `${avatar.color}50`,
               }}
             >
-              <div className="text-[44px]">{avatar.emoji}</div>
+              <LevelAvatar tier={avatar} size={64} />
               <div
                 className="mt-2 font-mono text-[9px] font-semibold uppercase tracking-wider"
                 style={{ color: avatar.color }}
@@ -250,6 +246,38 @@ export function IdentityProfileDialog({
               </div>
               <div className="mt-0.5 text-[11px] text-ink">{title}</div>
             </div>
+            {nextTier ? (
+              <div className="relative flex flex-col items-center rounded-md border border-dashed border-border bg-surface-2 p-4">
+                <LevelAvatar tier={nextTier} size={64} locked />
+                <div className="absolute right-2 top-2 grid h-5 w-5 place-items-center rounded-full bg-bg/80 text-ink-mute backdrop-blur">
+                  <HIcon name="archive" size={10} />
+                </div>
+                <div className="mt-2 font-mono text-[9px] uppercase tracking-wider text-ink-mute">
+                  Próximo (Nv. {nextTier.minLevel})
+                </div>
+                <div className="mt-0.5 text-[11px] text-ink-dim">
+                  {nextTitle}
+                </div>
+                {xpToNextTier > 0 && (
+                  <div
+                    className="mt-1.5 font-mono text-[9.5px]"
+                    style={{ color: nextTier.color }}
+                  >
+                    faltam {xpToNextTier.toLocaleString("pt-BR")} XP
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center rounded-md border border-dashed border-border bg-surface-2 p-4 text-center">
+                <div className="text-[28px]">🏁</div>
+                <div className="mt-2 font-mono text-[10px] uppercase tracking-wider text-ink-mute">
+                  Tier máximo
+                </div>
+                <div className="mt-0.5 text-[11px] text-ink-dim">
+                  Continue marcando — XP infinito
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

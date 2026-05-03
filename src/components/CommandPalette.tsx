@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { HIcon } from "./icons/HIcon";
+import { HabitGlyph } from "./HabitGlyph";
 import {
   CommandDialog,
   CommandEmpty,
@@ -168,7 +169,9 @@ export function CommandPalette({
                     className="grid h-5 w-5 place-items-center rounded text-xs"
                     style={{ backgroundColor: `${h.color}33` }}
                   >
-                    {h.emoji ?? (
+                    {h.emoji ? (
+                      <HabitGlyph emoji={h.emoji} size={12} />
+                    ) : (
                       <span
                         className="h-2 w-2 rounded-full"
                         style={{ backgroundColor: h.color }}

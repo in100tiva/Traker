@@ -8,6 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { HIcon } from "./icons/HIcon";
+import { HabitGlyph } from "./HabitGlyph";
 import { cn } from "@/lib/utils";
 import type { HabitFormInput } from "./HabitForm";
 
@@ -349,7 +350,7 @@ export function OnboardingFlow({ open, onSkip, onComplete }: Props) {
                   border: `2px solid ${habit.color}`,
                 }}
               >
-                {habit.emoji}
+                <HabitGlyph emoji={habit.emoji} size={56} />
               </motion.div>
               <div className="mt-4 font-display text-[22px] font-bold leading-tight tracking-tightest text-ink">
                 Pronto pra primeira vitória?

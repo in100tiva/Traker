@@ -109,25 +109,97 @@ export function titleForLevel(level: number): string {
 
 // ---------------------------------------------------------------------------
 // Avatar tiers — visual evolution mapped to identity titles.
+//
+// Each tier picks one of three DiceBear styles to convey progression:
+//   thumbs            → abstract beginner energy
+//   loreleiNeutral    → character emerges (mid-tiers)
+//   notionistsNeutral → refined identity (high-tiers)
+// `seed` is fixed per tier so every user at level N sees the same mascot,
+// reinforcing tier recognition across the community feed.
+// `emoji` is kept as a textual fallback for non-avatar surfaces (toasts).
 // ---------------------------------------------------------------------------
+
+export type AvatarStyleName = "thumbs" | "loreleiNeutral" | "notionistsNeutral";
 
 export interface AvatarTier {
   minLevel: number;
   emoji: string;
   color: string; // hex
+  style: AvatarStyleName;
+  seed: string;
 }
 
 export const AVATAR_TIERS: AvatarTier[] = [
-  { minLevel: 1, emoji: "🌱", color: "#a3e635" },
-  { minLevel: 3, emoji: "🌿", color: "#65a30d" },
-  { minLevel: 5, emoji: "🌳", color: "#22c55e" },
-  { minLevel: 8, emoji: "🌲", color: "#16a34a" },
-  { minLevel: 12, emoji: "🏔️", color: "#0ea5e9" },
-  { minLevel: 16, emoji: "⛰️", color: "#3b82f6" },
-  { minLevel: 20, emoji: "⭐", color: "#e8ff3a" },
-  { minLevel: 25, emoji: "🌟", color: "#f59e0b" },
-  { minLevel: 30, emoji: "🔥", color: "#f97316" },
-  { minLevel: 35, emoji: "🦅", color: "#a855f7" },
+  {
+    minLevel: 1,
+    emoji: "🌱",
+    color: "#a3e635",
+    style: "thumbs",
+    seed: "tier-1-aprendiz",
+  },
+  {
+    minLevel: 3,
+    emoji: "🌿",
+    color: "#65a30d",
+    style: "thumbs",
+    seed: "tier-2-iniciante",
+  },
+  {
+    minLevel: 5,
+    emoji: "🌳",
+    color: "#22c55e",
+    style: "loreleiNeutral",
+    seed: "tier-3-construcao",
+  },
+  {
+    minLevel: 8,
+    emoji: "🌲",
+    color: "#16a34a",
+    style: "loreleiNeutral",
+    seed: "tier-4-constante",
+  },
+  {
+    minLevel: 12,
+    emoji: "🏔️",
+    color: "#0ea5e9",
+    style: "loreleiNeutral",
+    seed: "tier-5-disciplinado",
+  },
+  {
+    minLevel: 16,
+    emoji: "⛰️",
+    color: "#3b82f6",
+    style: "notionistsNeutral",
+    seed: "tier-6-mente-calma",
+  },
+  {
+    minLevel: 20,
+    emoji: "⭐",
+    color: "#e8ff3a",
+    style: "notionistsNeutral",
+    seed: "tier-7-maratonista",
+  },
+  {
+    minLevel: 25,
+    emoji: "🌟",
+    color: "#f59e0b",
+    style: "notionistsNeutral",
+    seed: "tier-8-forjado",
+  },
+  {
+    minLevel: 30,
+    emoji: "🔥",
+    color: "#f97316",
+    style: "notionistsNeutral",
+    seed: "tier-9-mestre",
+  },
+  {
+    minLevel: 35,
+    emoji: "🦅",
+    color: "#a855f7",
+    style: "notionistsNeutral",
+    seed: "tier-10-lenda-viva",
+  },
 ];
 
 export function avatarForLevel(level: number): AvatarTier {
@@ -136,4 +208,25 @@ export function avatarForLevel(level: number): AvatarTier {
     if (level >= t.minLevel) chosen = t;
   }
   return chosen;
+}
+
+/**
+ * Returns the next tier the user has not reached yet, or `null` if already at
+ * the top. Used by the IdentityProfileDialog to preview what's coming.
+ */
+export function nextAvatarTier(level: number): AvatarTier | null {
+  for (const t of AVATAR_TIERS) {
+    if (t.minLevel > level) return t;
+  }
+  return null;
+}
+
+/**
+ * Returns the title associated with the next tier (mirrors `titleForLevel`).
+ */
+export function nextTitleForLevel(level: number): string | null {
+  for (const t of IDENTITY_TITLES) {
+    if (t.minLevel > level) return t.title;
+  }
+  return null;
 }
