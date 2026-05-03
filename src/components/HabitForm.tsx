@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, Smile } from "lucide-react";
+import { HIcon } from "./icons/HIcon";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -479,7 +479,7 @@ export function HabitForm({
                       {emoji ? (
                         <span className="text-lg">{emoji}</span>
                       ) : (
-                        <Smile className="h-4 w-4" />
+                        <HIcon name="sparkles" size={16} />
                       )}
                       {emoji ? "Trocar" : "Escolher"}
                     </Button>
@@ -530,7 +530,7 @@ export function HabitForm({
                       style={{ backgroundColor: c }}
                     >
                       {color === c && (
-                        <Check className="h-4 w-4 text-white" strokeWidth={3} />
+                        <HIcon name="check" size={16} strokeWidth={3} className="text-white" />
                       )}
                     </button>
                   ))}

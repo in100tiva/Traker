@@ -1,5 +1,5 @@
-import { Flame, Target, Trophy } from "lucide-react";
 import CountUp from "react-countup";
+import { HIcon } from "./icons/HIcon";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -42,13 +42,10 @@ export function StreakBadge({
           <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
             Sequência
           </div>
-          <Flame
-            className={cn(
-              "h-5 w-5",
-              flameColor(current),
-              isHot && "animate-flame",
-            )}
-            fill={isHot ? "currentColor" : "none"}
+          <HIcon
+            name="flame"
+            size={20}
+            className={cn(flameColor(current), isHot && "animate-flame")}
           />
         </div>
         <div className="mt-2 flex items-baseline gap-1">
@@ -66,7 +63,7 @@ export function StreakBadge({
           <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
             Recorde
           </div>
-          <Trophy className="h-5 w-5 text-amber-500" />
+          <HIcon name="trophy" size={20} className="text-amber-500" />
         </div>
         <div className="mt-2 flex items-baseline gap-1">
           <span className="font-display text-4xl font-bold leading-none tracking-tight font-tabular">
@@ -84,7 +81,7 @@ export function StreakBadge({
             <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
               Meta semanal
             </div>
-            <Target className="h-5 w-5 text-primary" />
+            <HIcon name="target" size={20} className="text-primary" />
           </div>
           <div className="mt-2 flex items-baseline gap-1">
             <span className="font-display text-4xl font-bold leading-none tracking-tight font-tabular">

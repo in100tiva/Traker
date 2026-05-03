@@ -2,14 +2,7 @@ import { useMemo } from "react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { fromDateKey } from "@/lib/date";
-import {
-  AlertTriangle,
-  Archive,
-  CheckCircle2,
-  FileText,
-  Pause,
-  Settings2,
-} from "lucide-react";
+import { HIcon, type IconName } from "./icons/HIcon";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -95,19 +88,19 @@ export function ImportPreviewDialog({
           <div className="space-y-3">
             <div className="grid grid-cols-3 gap-2">
               <StatCard
-                icon={CheckCircle2}
+                icon="check-circle"
                 tone="success"
                 label="Ativos"
                 value={stats.active}
               />
               <StatCard
-                icon={Pause}
+                icon="pause"
                 tone="warning"
                 label="Pausados"
                 value={stats.paused}
               />
               <StatCard
-                icon={Archive}
+                icon="archive"
                 tone="muted"
                 label="Arquivados"
                 value={stats.archived}
@@ -117,26 +110,26 @@ export function ImportPreviewDialog({
             <div className="rounded-lg border bg-muted/40 p-3">
               <ul className="space-y-1.5 text-sm">
                 <DetailLine
-                  icon={FileText}
+                  icon="check"
                   label="Marcações"
                   value={stats.completions.toString()}
                 />
                 {stats.notes > 0 && (
                   <DetailLine
-                    icon={FileText}
+                    icon="note"
                     label="Dias com nota"
                     value={stats.notes.toString()}
                   />
                 )}
                 {stats.dateRange && (
                   <DetailLine
-                    icon={FileText}
+                    icon="calendar"
                     label="Período"
                     value={stats.dateRange}
                   />
                 )}
                 <DetailLine
-                  icon={Settings2}
+                  icon="settings"
                   label="Preferências incluídas"
                   value={stats.settings > 0 ? "sim" : "não"}
                 />
@@ -144,7 +137,7 @@ export function ImportPreviewDialog({
             </div>
 
             <div className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-xs text-destructive">
-              <AlertTriangle className="h-4 w-4 shrink-0" />
+              <HIcon name="alert" size={16} className="shrink-0" />
               <span>
                 Isso <strong>substituirá todos os dados atuais</strong> do
                 Traker neste navegador. A operação não pode ser desfeita (além
@@ -174,12 +167,12 @@ const TONES = {
 } as const;
 
 function StatCard({
-  icon: Icon,
+  icon,
   tone,
   label,
   value,
 }: {
-  icon: React.ComponentType<{ className?: string }>;
+  icon: IconName;
   tone: keyof typeof TONES;
   label: string;
   value: number;
@@ -191,7 +184,7 @@ function StatCard({
         TONES[tone],
       )}
     >
-      <Icon className="mb-1 h-4 w-4" />
+      <HIcon name={icon} size={16} className="mb-1" />
       <div className="font-display text-xl font-semibold leading-none tabular-nums">
         {value}
       </div>
@@ -203,18 +196,18 @@ function StatCard({
 }
 
 function DetailLine({
-  icon: Icon,
+  icon,
   label,
   value,
 }: {
-  icon: React.ComponentType<{ className?: string }>;
+  icon: IconName;
   label: string;
   value: string;
 }) {
   return (
     <li className="flex items-center justify-between gap-4">
       <span className="flex items-center gap-2 text-muted-foreground">
-        <Icon className="h-3.5 w-3.5" />
+        <HIcon name={icon} size={14} />
         {label}
       </span>
       <span className="tabular-nums">{value}</span>

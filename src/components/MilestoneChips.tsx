@@ -1,17 +1,17 @@
-import { Award, Flame, Medal, Sparkles, Trophy } from "lucide-react";
+import { HIcon, type IconName } from "./icons/HIcon";
 import { MILESTONES } from "@/lib/streak";
 import { cn } from "@/lib/utils";
 
-const ICONS: Record<number, React.ComponentType<{ className?: string }>> = {
-  3: Sparkles,
-  7: Flame,
-  14: Flame,
-  30: Medal,
-  60: Medal,
-  100: Trophy,
-  180: Trophy,
-  365: Award,
-  730: Award,
+const ICONS: Record<number, IconName> = {
+  3: "sparkles",
+  7: "flame",
+  14: "flame",
+  30: "medal",
+  60: "medal",
+  100: "trophy",
+  180: "trophy",
+  365: "trophy",
+  730: "trophy",
 };
 
 interface Props {
@@ -27,9 +27,8 @@ export function MilestoneChips({ currentStreak, color }: Props) {
         const achieved = currentStreak >= m;
         const next = !achieved && currentStreak < m;
         const isNext =
-          next &&
-          MILESTONES.find((x) => x > currentStreak) === m;
-        const Icon = ICONS[m] ?? Medal;
+          next && MILESTONES.find((x) => x > currentStreak) === m;
+        const iconName = ICONS[m] ?? "medal";
         return (
           <div
             key={m}
@@ -44,7 +43,7 @@ export function MilestoneChips({ currentStreak, color }: Props) {
             style={achieved ? { backgroundColor: accent } : undefined}
             aria-label={`${m} dias ${achieved ? "atingidos" : "pendente"}`}
           >
-            <Icon className="h-3 w-3" />
+            <HIcon name={iconName} size={12} />
             {m}d
           </div>
         );

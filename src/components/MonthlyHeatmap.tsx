@@ -12,7 +12,7 @@ import {
   subMonths,
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { HIcon } from "./icons/HIcon";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -109,7 +109,7 @@ export function MonthlyHeatmap({
               aria-label="Mês anterior"
               data-testid="monthly-prev"
             >
-              <ChevronLeft className="h-4 w-4" />
+              <HIcon name="chevron-left" size={16} />
             </Button>
             <Button
               variant="ghost"
@@ -125,7 +125,7 @@ export function MonthlyHeatmap({
               aria-label="Próximo mês"
               data-testid="monthly-next"
             >
-              <ChevronRight className="h-4 w-4" />
+              <HIcon name="chevron-right" size={16} />
             </Button>
           </div>
         </div>
