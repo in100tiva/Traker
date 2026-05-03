@@ -1,21 +1,5 @@
 import { useEffect } from "react";
-import {
-  Archive,
-  ArchiveRestore,
-  Compass,
-  Download,
-  Gauge,
-  Home,
-  Keyboard,
-  Moon,
-  Pause,
-  Play,
-  Plus,
-  Sparkles,
-  Sun,
-  Upload,
-  User,
-} from "lucide-react";
+import { HIcon } from "./icons/HIcon";
 import {
   CommandDialog,
   CommandEmpty,
@@ -105,25 +89,28 @@ export function CommandPalette({
         <CommandEmpty>Nada encontrado.</CommandEmpty>
         <CommandGroup heading="Ações">
           <CommandItem onSelect={run(onOpenCreate)}>
-            <Plus />
+            <HIcon name="plus" size={16} />
             Novo hábito
             <CommandShortcut>N</CommandShortcut>
           </CommandItem>
           <CommandItem onSelect={run(onGoToday)}>
-            <Home />
+            <HIcon name="home" size={16} />
             Ir para Hoje
             <CommandShortcut>T</CommandShortcut>
           </CommandItem>
           <CommandItem onSelect={run(onToggleTheme)}>
-            {theme === "dark" ? <Sun /> : <Moon />}
+            <HIcon name={theme === "dark" ? "sun" : "moon"} size={16} />
             Tema {theme === "dark" ? "claro" : "escuro"}
           </CommandItem>
           <CommandItem onSelect={run(onToggleArchivedView)}>
-            {showArchived ? <ArchiveRestore /> : <Archive />}
+            <HIcon
+              name={showArchived ? "archive-restore" : "archive"}
+              size={16}
+            />
             {showArchived ? "Ver ativos" : "Ver arquivados"}
           </CommandItem>
           <CommandItem onSelect={run(onOpenShortcuts)}>
-            <Keyboard />
+            <HIcon name="keyboard" size={16} />
             Atalhos de teclado
             <CommandShortcut>?</CommandShortcut>
           </CommandItem>
@@ -132,25 +119,25 @@ export function CommandPalette({
           <CommandGroup heading="Descobrir">
             {onOpenProfile && (
               <CommandItem onSelect={run(onOpenProfile)}>
-                <User />
+                <HIcon name="user" size={16} />
                 Seu perfil
               </CommandItem>
             )}
             {onOpenCommunity && (
               <CommandItem onSelect={run(onOpenCommunity)}>
-                <Compass />
+                <HIcon name="compass" size={16} />
                 Comunidade
               </CommandItem>
             )}
             {onOpenBjFogg && (
               <CommandItem onSelect={run(onOpenBjFogg)}>
-                <Sparkles />
+                <HIcon name="sparkles" size={16} />
                 Criar hábito guiado (BJ Fogg)
               </CommandItem>
             )}
             {onOpenAdmin && (
               <CommandItem onSelect={run(onOpenAdmin)}>
-                <Gauge />
+                <HIcon name="chart" size={16} />
                 Painel admin
                 <CommandShortcut>⌃⇧A</CommandShortcut>
               </CommandItem>
@@ -159,11 +146,11 @@ export function CommandPalette({
         )}
         <CommandGroup heading="Dados">
           <CommandItem onSelect={run(onExport)}>
-            <Download />
+            <HIcon name="download" size={16} />
             Exportar backup
           </CommandItem>
           <CommandItem onSelect={run(onImport)}>
-            <Upload />
+            <HIcon name="upload" size={16} />
             Importar backup
           </CommandItem>
         </CommandGroup>
@@ -206,7 +193,7 @@ export function CommandPalette({
                   )}
                   value={`${h.pausedAt ? "resume" : "pause"} ${h.name}`}
                 >
-                  {h.pausedAt ? <Play /> : <Pause />}
+                  <HIcon name={h.pausedAt ? "play" : "pause"} size={16} />
                   {h.pausedAt ? "Retomar" : "Pausar"}: {h.name}
                 </CommandItem>
               ))}
@@ -218,7 +205,7 @@ export function CommandPalette({
                   onSelect={run(() => onArchive(h.id, h.name))}
                   value={`archive ${h.name}`}
                 >
-                  <Archive />
+                  <HIcon name="archive" size={16} />
                   Arquivar: {h.name}
                 </CommandItem>
               ))}
@@ -235,7 +222,7 @@ export function CommandPalette({
                   onSelect={run(() => onUnarchive(h.id))}
                   value={`unarchive ${h.name}`}
                 >
-                  <ArchiveRestore />
+                  <HIcon name="archive-restore" size={16} />
                   Restaurar: {h.name}
                 </CommandItem>
               ))}

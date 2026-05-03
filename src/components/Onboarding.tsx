@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Sparkles } from "lucide-react";
+import { HIcon } from "./icons/HIcon";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -126,7 +126,7 @@ export function Onboarding({ open, onCreate, onSkip }: Props) {
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
+            <HIcon name="sparkles" size={20} className="text-primary" />
             Bem-vindo ao Traker
           </DialogTitle>
           <DialogDescription>

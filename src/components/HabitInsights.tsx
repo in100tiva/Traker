@@ -1,11 +1,6 @@
 import { useMemo } from "react";
 import { motion } from "framer-motion";
-import {
-  AlertTriangle,
-  ArrowUpRight,
-  Sparkles,
-  TrendingUp,
-} from "lucide-react";
+import { HIcon, type IconName } from "./icons/HIcon";
 import type { CompletionRecord, WeeklyCount } from "@/db/queries";
 import { generateInsights, type Insight } from "@/lib/insights";
 import { cn } from "@/lib/utils";
@@ -17,11 +12,11 @@ interface Props {
   color: string;
 }
 
-const ICONS: Record<Insight["kind"], React.ComponentType<{ className?: string }>> = {
-  success: TrendingUp,
-  info: ArrowUpRight,
-  warning: AlertTriangle,
-  milestone: Sparkles,
+const ICONS: Record<Insight["kind"], IconName> = {
+  success: "trending-up",
+  info: "trending-up",
+  warning: "alert",
+  milestone: "sparkles",
 };
 
 const TONE: Record<Insight["kind"], string> = {
@@ -69,12 +64,12 @@ export function HabitInsights({
       }}
     >
       <div className="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-        <Sparkles className="h-3 w-3" />
+        <HIcon name="sparkles" size={12} />
         Resumo
       </div>
       <ul className="space-y-1.5">
         {insights.map((ins, i) => {
-          const Icon = ICONS[ins.kind];
+          const iconName = ICONS[ins.kind];
           return (
             <motion.li
               key={ins.id}
@@ -83,8 +78,10 @@ export function HabitInsights({
               transition={{ delay: i * 0.06, duration: 0.25 }}
               className="flex items-start gap-2 text-sm leading-relaxed"
             >
-              <Icon
-                className={cn("mt-0.5 h-4 w-4 shrink-0", TONE[ins.kind])}
+              <HIcon
+                name={iconName}
+                size={16}
+                className={cn("mt-0.5 shrink-0", TONE[ins.kind])}
               />
               <span className="text-muted-foreground">
                 {renderWithBold(ins.text)}

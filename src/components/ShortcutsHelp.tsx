@@ -1,4 +1,4 @@
-import { Keyboard } from "lucide-react";
+import { HIcon } from "./icons/HIcon";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -31,7 +31,7 @@ export function ShortcutsHelp({ open, onOpenChange }: Props) {
       <DialogContent>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Keyboard className="h-5 w-5" />
+            <HIcon name="keyboard" size={20} />
             Atalhos de teclado
           </DialogTitle>
           <DialogDescription>
@@ -59,7 +59,7 @@ interface ButtonProps {
 export function ShortcutsHelpButton({ onOpen }: ButtonProps) {
   return (
     <Button variant="ghost" size="icon" onClick={onOpen} aria-label="Atalhos">
-      <Keyboard className="h-4 w-4" />
+      <HIcon name="keyboard" size={16} />
     </Button>
   );
 }

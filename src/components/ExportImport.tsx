@@ -1,6 +1,6 @@
 import { forwardRef, useImperativeHandle, useRef, useState } from "react";
-import { Download, Upload } from "lucide-react";
 import { toast } from "sonner";
+import { HIcon } from "./icons/HIcon";
 import type { DbBundle } from "@/db/client";
 import { Button } from "@/components/ui/button";
 import { exportAll, importAll, type ExportPayload } from "@/db/queries";
@@ -113,7 +113,7 @@ export const ExportImport = forwardRef<ExportImportHandle, Props>(
           aria-label="Exportar backup"
           className="hidden md:inline-flex"
         >
-          <Download className="h-4 w-4" />
+          <HIcon name="download" size={16} />
         </Button>
         <Button
           variant="ghost"
@@ -123,7 +123,7 @@ export const ExportImport = forwardRef<ExportImportHandle, Props>(
           aria-label="Importar backup"
           className="hidden md:inline-flex"
         >
-          <Upload className="h-4 w-4" />
+          <HIcon name="upload" size={16} />
         </Button>
         <input
           ref={fileInput}

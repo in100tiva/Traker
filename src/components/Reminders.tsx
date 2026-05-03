@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Bell, BellOff, Check } from "lucide-react";
 import { toast } from "sonner";
+import { HIcon } from "./icons/HIcon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -85,11 +85,11 @@ export function Reminders({ pendingCount }: Props) {
     <Popover>
       <PopoverTrigger asChild>
         <Button variant="ghost" size="icon" aria-label="Lembretes">
-          {isActive ? (
-            <Bell className="h-4 w-4 text-primary" />
-          ) : (
-            <BellOff className="h-4 w-4" />
-          )}
+          <HIcon
+            name={isActive ? "bell" : "bell-off"}
+            size={16}
+            className={isActive ? "text-primary" : undefined}
+          />
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" sideOffset={8} className="w-80 p-0">
@@ -101,7 +101,7 @@ export function Reminders({ pendingCount }: Props) {
               </h3>
               {isActive && (
                 <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-primary">
-                  <Check className="h-2.5 w-2.5" />
+                  <HIcon name="check" size={10} />
                   ativo
                 </span>
               )}
@@ -147,12 +147,12 @@ export function Reminders({ pendingCount }: Props) {
               onClick={handleDisable}
               className="w-full"
             >
-              <BellOff className="h-4 w-4" />
+              <HIcon name="bell-off" size={16} />
               Desativar lembrete
             </Button>
           ) : (
             <Button size="sm" onClick={handleEnable} className="w-full">
-              <Bell className="h-4 w-4" />
+              <HIcon name="bell" size={16} />
               Ativar lembrete
             </Button>
           )}
