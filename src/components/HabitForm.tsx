@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { HIcon } from "./icons/HIcon";
+import { HIcon, type IconName } from "./icons/HIcon";
+import { ICON_GLYPH_PREFIX, parseGlyph } from "./IconTile";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -46,15 +47,19 @@ const COLORS = [
   "#84cc16",
 ];
 
-const EMOJIS = [
-  "📚", "✍️", "🎨", "🎵", "🎸",
-  "🧘", "🏃", "💪", "🚴", "🏊",
-  "💧", "🥗", "🍎", "☕", "🍵",
-  "😴", "🧠", "💊", "🦷", "🧴",
-  "💼", "💻", "📱", "📝", "📊",
-  "💰", "🎯", "⏰", "📅", "✅",
-  "🌱", "🌞", "🌙", "⭐", "🔥",
-  "❤️", "😊", "🙏", "✨", "🎉",
+/**
+ * Curated icon choices for the habit picker. Each entry is an HIcon name —
+ * stored in the habit's `emoji` field as `i:<name>` (see `parseGlyph`).
+ * The set is deliberately tight (24 options) to feel curated and avoid
+ * decision fatigue.
+ */
+const HABIT_ICON_OPTIONS: IconName[] = [
+  "drop", "lotus", "shoe", "book",
+  "music", "laptop", "flame", "sun",
+  "moon", "sparkles", "target", "trophy",
+  "medal", "bell", "home", "chart",
+  "calendar", "lightbulb", "pencil", "check",
+  "user", "compass", "image", "note",
 ];
 
 export interface HabitFormInput {
@@ -467,7 +472,7 @@ export function HabitForm({
 
             <TabsContent value="look" className="space-y-4">
               <div className="space-y-2">
-                <Label>Emoji</Label>
+                <Label>Ícone</Label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
@@ -476,18 +481,23 @@ export function HabitForm({
                       size="sm"
                       className="gap-2"
                     >
-                      {emoji ? (
-                        <span className="text-lg">{emoji}</span>
-                      ) : (
-                        <HIcon name="sparkles" size={16} />
-                      )}
+                      {(() => {
+                        const parsed = parseGlyph(emoji);
+                        if (parsed?.kind === "icon") {
+                          return <HIcon name={parsed.name} size={18} />;
+                        }
+                        if (parsed?.kind === "emoji") {
+                          return <span className="text-lg">{parsed.value}</span>;
+                        }
+                        return <HIcon name="sparkles" size={16} />;
+                      })()}
                       {emoji ? "Trocar" : "Escolher"}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-72">
                     <div className="mb-2 flex items-center justify-between">
                       <span className="text-xs font-medium">
-                        Escolha um emoji
+                        Escolha um ícone
                       </span>
                       {emoji && (
                         <button
@@ -499,20 +509,27 @@ export function HabitForm({
                         </button>
                       )}
                     </div>
-                    <div className="grid grid-cols-8 gap-1">
-                      {EMOJIS.map((e) => (
-                        <button
-                          key={e}
-                          type="button"
-                          onClick={() => setEmoji(e)}
-                          className={cn(
-                            "grid h-8 w-8 place-items-center rounded-md text-lg transition-colors hover:bg-accent",
-                            emoji === e && "bg-primary/20 ring-2 ring-primary",
-                          )}
-                        >
-                          {e}
-                        </button>
-                      ))}
+                    <div className="grid grid-cols-6 gap-1.5">
+                      {HABIT_ICON_OPTIONS.map((iconName) => {
+                        const tokenValue = `${ICON_GLYPH_PREFIX}${iconName}`;
+                        const selected = emoji === tokenValue;
+                        return (
+                          <button
+                            key={iconName}
+                            type="button"
+                            onClick={() => setEmoji(tokenValue)}
+                            aria-label={iconName}
+                            className={cn(
+                              "grid h-10 w-10 place-items-center rounded-md transition-colors hover:bg-accent",
+                              selected
+                                ? "bg-primary/20 text-primary ring-2 ring-primary"
+                                : "text-foreground/80",
+                            )}
+                          >
+                            <HIcon name={iconName} size={18} />
+                          </button>
+                        );
+                      })}
                     </div>
                   </PopoverContent>
                 </Popover>

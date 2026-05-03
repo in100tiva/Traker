@@ -17,6 +17,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import type { Habit } from "@/db/schema";
 import { HIcon, type IconName } from "./icons/HIcon";
+import { HabitGlyph } from "./HabitGlyph";
 import { LogoMark, LogoWordmark } from "./Logo";
 import { useUIStore, type ActiveView } from "@/store/useUIStore";
 import { cn } from "@/lib/utils";
@@ -243,7 +244,7 @@ export function Sidebar({
 
 function HabitDot({ habit }: { habit: Habit }) {
   if (habit.emoji) {
-    return <span className="text-[15px] leading-none">{habit.emoji}</span>;
+    return <HabitGlyph emoji={habit.emoji} size={15} />;
   }
   return (
     <span

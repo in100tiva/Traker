@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { HIcon } from "./icons/HIcon";
+import { HabitGlyph } from "./HabitGlyph";
 import { cn } from "@/lib/utils";
 import type { HabitFormInput } from "./HabitForm";
 
@@ -246,7 +247,7 @@ export function HabitCreatorBJFogg({
                         : "border-border bg-surface hover:border-border-strong",
                     )}
                   >
-                    <span style={{ fontSize: 20 }}>{h.emoji ?? "•"}</span>
+                    <HabitGlyph emoji={h.emoji} size={20} />
                     <div className="text-[13px] text-ink">
                       <span className="text-ink-dim">depois de </span>
                       <span className="font-semibold">

@@ -5,6 +5,7 @@ import type { CompletionRecord, WeeklyCount } from "@/db/queries";
 import { Hero } from "./Hero";
 import { HabitGridCard } from "./HabitGridCard";
 import { HabitDetail } from "./HabitDetail";
+import { HabitGlyph } from "./HabitGlyph";
 import { Button } from "@/components/ui/button";
 import { HIcon } from "./icons/HIcon";
 import { toDateKey, todayKey, type DateKey } from "@/lib/date";
@@ -343,9 +344,7 @@ export function TodayView({
                         onClick={() => onSelectHabit(h.id)}
                         className="flex w-full items-center gap-3 rounded-lg border border-dashed border-border bg-surface-2/50 px-4 py-3 text-left text-[13px] opacity-80 transition-colors hover:opacity-100"
                       >
-                        <span className="text-base leading-none">
-                          {h.emoji ?? "•"}
-                        </span>
+                        <HabitGlyph emoji={h.emoji} size={16} />
                         <span className="flex-1 truncate text-ink-dim">
                           {h.name}
                         </span>

@@ -1,5 +1,6 @@
 import CountUp from "react-countup";
 import { motion } from "framer-motion";
+import { LevelAvatar } from "./LevelAvatar";
 import {
   avatarForLevel,
   levelFromXp,
@@ -23,11 +24,11 @@ export function LevelBadge({ totalXp, className, compact }: Props) {
     return (
       <div
         className={cn(
-          "inline-flex items-center gap-1.5 rounded-pill border border-border bg-surface-2 px-2 py-1",
+          "inline-flex items-center gap-1.5 rounded-pill border border-border bg-surface-2 py-1 pl-1 pr-2",
           className,
         )}
       >
-        <span style={{ fontSize: 16 }}>{avatar.emoji}</span>
+        <LevelAvatar tier={avatar} size={22} />
         <span className="font-mono text-[10px] font-semibold tabular-nums text-ink">
           Nv. {info.level}
         </span>
@@ -43,15 +44,7 @@ export function LevelBadge({ totalXp, className, compact }: Props) {
       )}
     >
       <div className="flex items-center gap-3">
-        <div
-          className="grid h-10 w-10 shrink-0 place-items-center rounded-md text-[22px]"
-          style={{
-            background: `${avatar.color}22`,
-            border: `1.5px solid ${avatar.color}`,
-          }}
-        >
-          {avatar.emoji}
-        </div>
+        <LevelAvatar tier={avatar} size={40} className="shrink-0 rounded-md" />
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-1.5">
             <span className="font-display text-[18px] font-bold leading-none tracking-tighter text-ink">
