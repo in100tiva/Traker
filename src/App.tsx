@@ -26,6 +26,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import { BottomNav } from "@/components/BottomNav";
 import { useDb } from "@/hooks/useDb";
+import { HabitGridLoader } from "@/components/HabitGridLoader";
 import { useHabits } from "@/hooks/useHabits";
 import { useCompletions } from "@/hooks/useCompletions";
 import { useSettings } from "@/hooks/useSettings";
@@ -63,7 +64,15 @@ import type { DateKey } from "@/lib/date";
 import type { Habit } from "@/db/schema";
 
 export default function App() {
-  const bundle = useDb();
+  const { bundle, error: dbError } = useDb();
+  const [showLoader, setShowLoader] = useState(true);
+
+  // Se a inicialização do banco falhar, fecha o loader para não prender o
+  // usuário numa tela de carregamento permanente cobrindo o app.
+  useEffect(() => {
+    if (dbError) setShowLoader(false);
+  }, [dbError]);
+
   const { settings, update: updateSettings, loaded: settingsLoaded } =
     useSettings(bundle);
 
@@ -519,7 +528,8 @@ export default function App() {
   );
 
   return (
-    <div className="flex min-h-screen w-full bg-bg text-ink">
+    <>
+      <div className="flex min-h-screen w-full bg-bg text-ink">
       {/* Sidebar — visible desktop/tablet, drawer mobile */}
       {!isMobile && (
         <Sidebar
@@ -812,6 +822,13 @@ export default function App() {
       />
 
       <XpBurstHost />
-    </div>
+      </div>
+      {showLoader && (
+        <HabitGridLoader
+          ready={bundle !== null}
+          onFinished={() => setShowLoader(false)}
+        />
+      )}
+    </>
   );
 }
