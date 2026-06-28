@@ -12,4 +12,15 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ["@electric-sql/pglite"],
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Isola o three.js (usado só pela tela de carregamento) num chunk
+          // próprio e cacheável, fora do bundle de entrada.
+          three: ["three"],
+        },
+      },
+    },
+  },
 });

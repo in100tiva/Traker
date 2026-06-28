@@ -1,0 +1,69 @@
+/* Estilos do loader "Grade de hábitos" (tela de carregamento).
+   Recriação fiel do protótipo "Loader Grade Streaks.dc.html".
+   As fontes (Space Grotesk / JetBrains Mono) são auto-hospedadas via
+   @fontsource (importadas no componente), compatíveis com o CSP do app. */
+
+.hgl-root {
+  position: fixed;
+  inset: 0;
+  /* Acima de todo o conteúdo do app (sidebar/drawer usam z-30..z-50),
+     porém abaixo do toaster do sonner para que erros fiquem visíveis. */
+  z-index: 9999;
+  background: radial-gradient(130% 100% at 50% 32%, #14160f 0%, #0a0a0b 60%);
+  font-family: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  opacity: 1;
+  transition: opacity 0.5s ease;
+}
+
+.hgl-root.hgl-hidden {
+  opacity: 0;
+}
+
+.hgl-mono {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.hgl-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+  cursor: grab;
+}
+
+@keyframes hglDotBlink {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.hgl-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #c8f23c;
+  animation: hglDotBlink 1.2s ease-in-out infinite;
+}
+.hgl-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.hgl-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hgl-dot {
+    animation: none;
+    opacity: 0.7;
+  }
+}
