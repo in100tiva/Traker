@@ -36,6 +36,11 @@ let dbPromise: Promise<DbBundle> | null = null;
 /** Browser singleton backed by IndexedDB. */
 export function getDb(): Promise<DbBundle> {
   if (!dbPromise) {
+    // Pede armazenamento persistente: tira o IndexedDB do modo best-effort,
+    // reduzindo o risco de eviction dos dados sob pressão de disco.
+    if (typeof navigator !== "undefined" && navigator.storage?.persist) {
+      navigator.storage.persist().catch(() => {});
+    }
     dbPromise = createDb("idb://traker-db");
   }
   return dbPromise;

@@ -9,10 +9,14 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import {
+  cancelNativeReminder,
+  getNotificationPermission,
+  isNativeReminders,
   loadReminder,
   notificationsSupported,
   requestNotificationPermission,
   saveReminder,
+  scheduleNativeReminder,
   startReminderTimer,
   type ReminderConfig,
 } from "@/lib/reminders";
@@ -28,15 +32,31 @@ function pad(n: number): string {
 
 export function Reminders({ pendingCount }: Props) {
   const [cfg, setCfg] = useState<ReminderConfig>(() => loadReminder());
+  // A permissão é lida de forma assíncrona: no nativo vem do plugin
+  // (checkPermissions), no web de Notification.permission.
   const [permission, setPermission] = useState<NotificationPermission>(
-    notificationsSupported() ? Notification.permission : "denied",
+    notificationsSupported() ? "default" : "denied",
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    getNotificationPermission()
+      .then((p) => {
+        if (!cancelled) setPermission(p);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const pendingRef = useRef(pendingCount);
   useEffect(() => {
     pendingRef.current = pendingCount;
   }, [pendingCount]);
 
+  // Fallback web: timer com a aba aberta. No nativo é no-op — o agendamento
+  // fica com o LocalNotifications (AlarmManager), mesmo com o app fechado.
   useEffect(() => {
     if (!cfg.enabled) return;
     const stop = startReminderTimer(cfg, () => pendingRef.current);
@@ -55,6 +75,14 @@ export function Reminders({ pendingCount }: Props) {
       return;
     }
     const next = { ...cfg, enabled: true };
+    try {
+      await scheduleNativeReminder(next); // no-op no web
+    } catch (err) {
+      toast.error("Falha ao agendar lembrete", {
+        description: (err as Error).message,
+      });
+      return;
+    }
     setCfg(next);
     saveReminder(next);
     toast.success(`Lembrete ativado para ${pad(next.hour)}:${pad(next.minute)}`);
@@ -62,6 +90,7 @@ export function Reminders({ pendingCount }: Props) {
 
   function handleDisable() {
     const next = { ...cfg, enabled: false };
+    cancelNativeReminder().catch(() => {}); // no-op no web
     setCfg(next);
     saveReminder(next);
     toast.success("Lembretes desativados");
@@ -77,6 +106,8 @@ export function Reminders({ pendingCount }: Props) {
     const next = { ...cfg, [field]: bounded } as ReminderConfig;
     setCfg(next);
     saveReminder(next);
+    // Lembrete ativo no nativo: reagenda com o novo horário.
+    if (next.enabled) scheduleNativeReminder(next).catch(() => {});
   }
 
   const isActive = cfg.enabled && permission === "granted";
@@ -107,8 +138,9 @@ export function Reminders({ pendingCount }: Props) {
               )}
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              Notifica só se ainda houver hábitos pendentes no horário escolhido.
-              Requer a aba aberta.
+              {isNativeReminders()
+                ? "Notifica no horário escolhido, mesmo com o app fechado."
+                : "Notifica só se ainda houver hábitos pendentes no horário escolhido. Requer a aba aberta."}
             </p>
           </div>
 
