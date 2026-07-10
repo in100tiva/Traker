@@ -32,7 +32,19 @@ export const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border border-border bg-surface p-6 text-ink shadow-dramatic duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-xl",
+        // Animação: as classes slide-*-left-1/2 / top-* compensam o transform
+        // de centralização (translate -50%) durante os keyframes do
+        // tailwindcss-animate — sem elas o zoom parte da origem errada e a
+        // transição fica invisível. Mobile: sheet deslizando de baixo (300ms);
+        // desktop (sm+): zoom central com micro-settle (200ms).
+        "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border border-border bg-surface p-6 text-ink shadow-dramatic",
+        "duration-300 ease-out sm:duration-200",
+        "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-left-1/2",
+        "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-left-1/2",
+        "data-[state=open]:slide-in-from-top-[calc(50%-1.5rem)] data-[state=closed]:slide-out-to-top-[calc(50%-1.5rem)]",
+        "sm:data-[state=open]:slide-in-from-top-[48%] sm:data-[state=closed]:slide-out-to-top-[48%]",
+        "sm:data-[state=open]:zoom-in-95 sm:data-[state=closed]:zoom-out-95",
+        "motion-reduce:duration-[1ms] sm:rounded-xl",
         className,
       )}
       {...props}

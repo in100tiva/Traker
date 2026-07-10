@@ -45,6 +45,7 @@ import {
 } from "@/db/queries";
 import { Capacitor } from "@capacitor/core";
 import { App as CapApp } from "@capacitor/app";
+import { motion, useReducedMotion } from "framer-motion";
 import { haptics } from "@/lib/haptics";
 import { bootstrap, trackActivationOnFirstCheck } from "@/lib/bootstrap";
 import {
@@ -100,6 +101,7 @@ export default function App() {
 
   const isMobile = useMediaQuery("(max-width: 759px)");
   const isTablet = useMediaQuery("(min-width: 760px) and (max-width: 1099px)");
+  const reduceMotion = useReducedMotion();
 
   const [commandOpen, setCommandOpen] = useState(false);
   const [bjFoggOpen, setBjFoggOpen] = useState(false);
@@ -646,13 +648,19 @@ export default function App() {
       )}
       {isMobile && sidebarOpen && (
         <>
-          <div
+          <motion.div
             className="fixed inset-0 z-30 bg-black/60 backdrop-blur-sm"
             onClick={() => setSidebarOpen(false)}
+            initial={reduceMotion ? false : { opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.15, ease: "easeOut" }}
           />
-          <div
+          <motion.div
             className="fixed inset-y-0 left-0 z-40"
             style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
+            initial={reduceMotion ? false : { x: "-100%" }}
+            animate={{ x: 0 }}
+            transition={{ duration: 0.25, ease: [0.2, 0.8, 0.2, 1] }}
           >
             <Sidebar
               habits={activeHabits}
@@ -661,7 +669,7 @@ export default function App() {
               currentStreak={heroStreak.current}
               recordStreak={heroStreak.record}
             />
-          </div>
+          </motion.div>
         </>
       )}
 
@@ -694,6 +702,16 @@ export default function App() {
                 dismissKey="traker.banner.reengage"
               />
             )}
+            {/* Transição de view: o conteúdo novo entra com fade + slide sutil
+                (220ms, enter-only — sem exit para a troca continuar instantânea).
+                Anima só transform/opacity; estático com prefers-reduced-motion. */}
+            <motion.div
+              key={activeView}
+              className="flex min-w-0 flex-col gap-4"
+              initial={reduceMotion ? false : { opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
+            >
             {activeView === "today" && (
               <TodayView
                 bundle={bundle}
@@ -752,6 +770,7 @@ export default function App() {
             {activeView === "achievements" && (
               <AchievementsView bundle={bundle} habits={activeHabits} />
             )}
+            </motion.div>
           </div>
         </section>
       </main>

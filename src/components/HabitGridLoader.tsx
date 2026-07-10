@@ -67,8 +67,17 @@ export function HabitGridLoader({ ready = false, onFinished }: HabitGridLoaderPr
       const prevColorManagement = three.ColorManagement.enabled;
       three.ColorManagement.enabled = false;
 
-      const renderer = new three.WebGLRenderer({ canvas, antialias: true, alpha: true });
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      // Em telas touch (celular/WebView) reduz o custo de GPU: sem antialias
+      // e DPR limitado a 1.5 — imperceptível em tela pequena, muito mais leve.
+      const coarse =
+        typeof window !== "undefined" &&
+        window.matchMedia("(pointer: coarse)").matches;
+      const renderer = new three.WebGLRenderer({
+        canvas,
+        antialias: !coarse,
+        alpha: true,
+      });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, coarse ? 1.5 : 2));
 
       const scene = new three.Scene();
       const camera = new three.PerspectiveCamera(42, 1, 0.1, 100);

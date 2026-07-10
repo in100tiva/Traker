@@ -45,7 +45,7 @@ export function BottomNav() {
               type="button"
               onClick={() => setView(it.id)}
               className={cn(
-                "inline-flex h-10 items-center gap-1.5 rounded-pill text-[13px] font-semibold transition-all",
+                "inline-flex h-10 items-center gap-1.5 rounded-pill text-[13px] font-semibold transition-all duration-150 ease-out active:scale-95 motion-reduce:transition-none",
                 active
                   ? "bg-accent px-3.5 text-[rgb(10,10,10)]"
                   : "bg-transparent px-2.5 text-ink-dim",
