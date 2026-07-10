@@ -33,7 +33,7 @@ import { useSettings } from "@/hooks/useSettings";
 import { useHotkeys } from "@/hooks/useHotkeys";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useUIStore } from "@/store/useUIStore";
-import { toDateKey } from "@/lib/date";
+import { toDateKey, todayKey } from "@/lib/date";
 import {
   toggleCompletion,
   eventsCount,
@@ -41,7 +41,10 @@ import {
   recordXp,
   getXpTotal,
   createHabit,
+  getPendingToday,
 } from "@/db/queries";
+import { Capacitor } from "@capacitor/core";
+import { App as CapApp } from "@capacitor/app";
 import { haptics } from "@/lib/haptics";
 import { bootstrap, trackActivationOnFirstCheck } from "@/lib/bootstrap";
 import {
@@ -80,7 +83,9 @@ export default function App() {
     activeView,
     selectedHabitId,
     setSelectedHabit,
+    isCreateOpen,
     openCreate,
+    closeCreate,
     showArchived,
     toggleShowArchived,
     editingHabit,
@@ -156,6 +161,104 @@ export default function App() {
     () => (noteDate ? completions.find((c) => c.date === noteDate) : null),
     [noteDate, completions],
   );
+
+  // Contagem real de hábitos pendentes hoje (usada pelos lembretes).
+  // Live query em completions mantém o valor fresco quando qualquer hábito
+  // é marcado/desmarcado, em qualquer view.
+  const [pendingToday, setPendingToday] = useState(0);
+  useEffect(() => {
+    if (!bundle) return;
+    let cancelled = false;
+    let unsubscribe: (() => void) | null = null;
+    const refresh = () => {
+      getPendingToday(bundle.db, todayKey())
+        .then((r) => {
+          if (!cancelled) setPendingToday(r.pending);
+        })
+        .catch(() => {});
+    };
+    refresh();
+    bundle.pg.live
+      .query("SELECT count(*)::text AS n FROM completions", [], refresh)
+      .then((sub) => {
+        if (cancelled) {
+          sub.unsubscribe();
+          return;
+        }
+        unsubscribe = sub.unsubscribe;
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
+  }, [bundle, habits]);
+
+  // Botão voltar do Android: fecha overlays/diálogos na ordem, volta para a
+  // view "Hoje" e, só então, minimiza o app (comportamento nativo esperado).
+  const backHandlerRef = useRef<() => boolean>(() => false);
+  backHandlerRef.current = () => {
+    if (commandOpen) {
+      setCommandOpen(false);
+      return true;
+    }
+    if (shortcutsOpen) {
+      setShortcutsOpen(false);
+      return true;
+    }
+    if (bjFoggOpen) {
+      setBjFoggOpen(false);
+      return true;
+    }
+    if (profileOpen) {
+      setProfileOpen(false);
+      return true;
+    }
+    if (communityOpen) {
+      setCommunityOpen(false);
+      return true;
+    }
+    if (adminOpen) {
+      setAdminOpen(false);
+      return true;
+    }
+    if (recovery) {
+      setRecovery(null);
+      return true;
+    }
+    if (noteDate) {
+      setNoteDate(null);
+      return true;
+    }
+    if (editingHabit) {
+      setEditing(null);
+      return true;
+    }
+    if (isCreateOpen) {
+      closeCreate();
+      return true;
+    }
+    if (sidebarOpen) {
+      setSidebarOpen(false);
+      return true;
+    }
+    if (activeView !== "today") {
+      setView("today");
+      return true;
+    }
+    return false;
+  };
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    const sub = CapApp.addListener("backButton", () => {
+      if (!backHandlerRef.current()) {
+        CapApp.minimizeApp().catch(() => {});
+      }
+    });
+    return () => {
+      sub.then((h) => h.remove()).catch(() => {});
+    };
+  }, []);
 
   // Bootstrap: install_id, timezone, app_open, re-engagement detection.
   // If the user is returning after >= 2 days, surface an empathetic banner.
@@ -519,7 +622,7 @@ export default function App() {
           <LevelBadge totalXp={heroXpTotal} compact className="mr-1" />
         </button>
       )}
-      {!isMobile && <Reminders pendingCount={0} />}
+      <Reminders pendingCount={pendingToday} />
       <ExportImport bundle={bundle} ref={exportImportRef} />
       {!isMobile && (
         <ShortcutsHelpButton onOpen={() => setShortcutsOpen(true)} />
@@ -547,7 +650,10 @@ export default function App() {
             className="fixed inset-0 z-30 bg-black/60 backdrop-blur-sm"
             onClick={() => setSidebarOpen(false)}
           />
-          <div className="fixed inset-y-0 left-0 z-40">
+          <div
+            className="fixed inset-y-0 left-0 z-40"
+            style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
+          >
             <Sidebar
               habits={activeHabits}
               loading={loading}

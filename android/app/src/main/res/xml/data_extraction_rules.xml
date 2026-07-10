@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+ (API 31+): exclui o diretório do WebView (IndexedDB/PGlite)
+     do Auto Backup e da transferência entre aparelhos — restore parcial
+     desse diretório corrompe o banco local. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" path="app_webview/" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" path="app_webview/" />
+    </device-transfer>
+</data-extraction-rules>

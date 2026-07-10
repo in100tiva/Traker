@@ -32,7 +32,14 @@ export function Topbar({
   const { activeView } = useUIStore();
 
   return (
-    <header className="flex h-[60px] shrink-0 items-center gap-3 border-b border-border bg-bg px-4 md:px-6">
+    <header
+      className="flex shrink-0 items-center gap-3 border-b border-border bg-bg px-4 md:px-6"
+      style={{
+        // Safe area (status bar/notch) no app Android/iOS com viewport-fit=cover.
+        paddingTop: "env(safe-area-inset-top, 0px)",
+        height: "calc(60px + env(safe-area-inset-top, 0px))",
+      }}
+    >
       <div className="flex min-w-0 flex-1 items-center gap-3">
         {showSidebarToggle && (
           <button

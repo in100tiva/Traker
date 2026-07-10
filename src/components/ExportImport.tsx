@@ -1,5 +1,8 @@
 import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { toast } from "sonner";
+import { Capacitor } from "@capacitor/core";
+import { Directory, Encoding, Filesystem } from "@capacitor/filesystem";
+import { Share } from "@capacitor/share";
 import { HIcon } from "./icons/HIcon";
 import type { DbBundle } from "@/db/client";
 import { Button } from "@/components/ui/button";
@@ -27,16 +30,38 @@ export const ExportImport = forwardRef<ExportImportHandle, Props>(
       if (!bundle) return;
       try {
         const payload = await exportAll(bundle.db);
-        const blob = new Blob([JSON.stringify(payload, null, 2)], {
-          type: "application/json",
-        });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
+        const json = JSON.stringify(payload, null, 2);
         const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-        a.download = `traker-backup-${stamp}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
+        const filename = `traker-backup-${stamp}.json`;
+
+        if (Capacitor.isNativePlatform()) {
+          // WebView Android não baixa blob: + <a download> — gravamos no
+          // cache do app e abrimos o share sheet (salvar em Arquivos,
+          // Drive, enviar etc.). Toast só depois da gravação confirmada.
+          const written = await Filesystem.writeFile({
+            path: filename,
+            data: json,
+            directory: Directory.Cache,
+            encoding: Encoding.UTF8,
+          });
+          try {
+            await Share.share({
+              title: "Backup do Streaks",
+              url: written.uri,
+              dialogTitle: "Salvar/compartilhar backup",
+            });
+          } catch {
+            // usuário cancelou o share — o arquivo foi gravado mesmo assim
+          }
+        } else {
+          const blob = new Blob([json], { type: "application/json" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = filename;
+          a.click();
+          URL.revokeObjectURL(url);
+        }
 
         const habitCount = payload.habits.length;
         const completionCount = payload.completions.length;
@@ -111,7 +136,6 @@ export const ExportImport = forwardRef<ExportImportHandle, Props>(
           onClick={handleExport}
           disabled={!bundle}
           aria-label="Exportar backup"
-          className="hidden md:inline-flex"
         >
           <HIcon name="download" size={16} />
         </Button>
@@ -121,14 +145,13 @@ export const ExportImport = forwardRef<ExportImportHandle, Props>(
           onClick={() => fileInput.current?.click()}
           disabled={!bundle}
           aria-label="Importar backup"
-          className="hidden md:inline-flex"
         >
           <HIcon name="upload" size={16} />
         </Button>
         <input
           ref={fileInput}
           type="file"
-          accept="application/json"
+          accept="application/json,.json"
           className="hidden"
           onChange={handleFileSelected}
         />
