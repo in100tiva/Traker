@@ -24,6 +24,10 @@ export async function createDb(dataDir?: string): Promise<DbBundle> {
 
   const pg = (await PGlite.create(dataDir, {
     extensions: { live },
+    // Escritas retornam sem esperar o flush no IndexedDB — reduz muito a
+    // latência de marcar hábitos (especialmente no WebView Android). Pior
+    // caso em crash: perde-se a última escrita, aceitável para este app.
+    relaxedDurability: true,
   })) as PGliteWithLive;
 
   await applyMigrations(pg);

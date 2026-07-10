@@ -137,6 +137,31 @@
     button {
       min-height: 36px;
     }
+    /* O botão de fechar do sonner é um círculo ~20px — o min-height acima o
+       esticava em oval. Toasts têm o próprio dimensionamento. */
+    [data-sonner-toaster] button {
+      min-height: 0;
+    }
+  }
+
+  /* Botão de fechar dos toasts: círculo perfeito, alinhado ao tema. */
+  [data-sonner-toast] [data-close-button] {
+    width: 20px;
+    height: 20px;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    padding: 0;
+    background: rgb(var(--surface-3));
+    color: rgb(var(--text));
+    border: 1px solid rgb(var(--border-strong));
+  }
+  [data-sonner-toast] [data-close-button]:hover {
+    background: rgb(48 48 48);
+  }
+
+  /* Toaster no topo (mobile): respeita a safe area da status bar. */
+  [data-sonner-toaster][data-y-position="top"] {
+    top: calc(env(safe-area-inset-top, 0px) + 12px);
   }
 
   @media (prefers-reduced-motion: reduce) {

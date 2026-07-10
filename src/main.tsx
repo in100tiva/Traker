@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { Toaster } from "sonner";
 import App from "./App";
@@ -24,9 +24,21 @@ if ("serviceWorker" in navigator) {
 }
 
 function ThemedToaster() {
+  // Mobile: toasts no topo (não brigam com a bottom nav nem com o teclado);
+  // desktop: canto inferior direito, como antes.
+  const [isMobile, setIsMobile] = useState(
+    () => window.matchMedia("(max-width: 759px)").matches,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 759px)");
+    const onChange = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
   return (
     <Toaster
-      position="bottom-right"
+      position={isMobile ? "top-center" : "bottom-right"}
       theme="dark"
       richColors
       closeButton

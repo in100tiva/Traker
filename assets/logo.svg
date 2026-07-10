@@ -1,0 +1,6 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Marca Streaks: tile lime arredondado com losango escuro central
+       (mesma identidade do loader e do app shell). -->
+  <rect x="112" y="112" width="800" height="800" rx="228" fill="#C8F23C"/>
+  <rect x="368" y="368" width="288" height="288" rx="98" fill="#0A0A0B" transform="rotate(45 512 512)"/>
+</svg>

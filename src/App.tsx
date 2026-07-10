@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { HabitForm, type HabitFormInput } from "@/components/HabitForm";
 import { HabitCreatorBJFogg } from "@/components/HabitCreatorBJFogg";
 import { ExportImport } from "@/components/ExportImport";
@@ -13,9 +21,24 @@ import { IdentityProfileDialog } from "@/components/IdentityProfileDialog";
 import { CommunityFeed } from "@/components/CommunityFeed";
 import { AdminDashboard } from "@/components/AdminDashboard";
 import { HabitsManagementView } from "@/components/HabitsManagementView";
-import { AnalyticsView } from "@/components/AnalyticsView";
-import { CalendarView } from "@/components/CalendarView";
-import { AchievementsView } from "@/components/AchievementsView";
+
+// Views pesadas carregadas sob demanda (recharts etc.) — fora do JS inicial,
+// o app abre mais rápido; o chunk baixa na primeira visita à aba.
+const AnalyticsView = lazy(() =>
+  import("@/components/AnalyticsView").then((m) => ({
+    default: m.AnalyticsView,
+  })),
+);
+const CalendarView = lazy(() =>
+  import("@/components/CalendarView").then((m) => ({
+    default: m.CalendarView,
+  })),
+);
+const AchievementsView = lazy(() =>
+  import("@/components/AchievementsView").then((m) => ({
+    default: m.AchievementsView,
+  })),
+);
 import {
   ShortcutsHelp,
   ShortcutsHelpButton,
@@ -759,17 +782,23 @@ export default function App() {
               />
             )}
 
-            {activeView === "stats" && (
-              <AnalyticsView bundle={bundle} habits={activeHabits} />
-            )}
+            <Suspense
+              fallback={
+                <div className="animate-shimmer h-64 rounded-2xl border border-border" />
+              }
+            >
+              {activeView === "stats" && (
+                <AnalyticsView bundle={bundle} habits={activeHabits} />
+              )}
 
-            {activeView === "calendar" && (
-              <CalendarView bundle={bundle} habits={activeHabits} />
-            )}
+              {activeView === "calendar" && (
+                <CalendarView bundle={bundle} habits={activeHabits} />
+              )}
 
-            {activeView === "achievements" && (
-              <AchievementsView bundle={bundle} habits={activeHabits} />
-            )}
+              {activeView === "achievements" && (
+                <AchievementsView bundle={bundle} habits={activeHabits} />
+              )}
+            </Suspense>
             </motion.div>
           </div>
         </section>
